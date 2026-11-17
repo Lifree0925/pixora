@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum GenerationMode {
+  text_to_image
+  image_edit
+  multi_image_edit
+}
+
+enum TaskStatus {
+  pending
+  submitting
+  processing
+  timed_out
+  submit_unknown
+  succeeded
+  failed
+}
+
+enum AssetRelation {
+  input
+  output
+}
+
+enum AssetOrigin {
+  uploaded
+  generated
+}
+
+model GenerationTask {
+  id                  String           @id @default(cuid())
+  conversationId      String
+  mode                GenerationMode
+  prompt              String
+  size                String
+  status              TaskStatus       @default(pending)
+  idempotencyKey      String           @unique
+  requestHash         String
+  requestSnapshot     Json
+  provider            String
+  model               String
+  providerTaskId      String?
+  providerRawStatus   String?
+  errorCode           String?
+  errorMessage        String?
+  parentTaskId        String?
+  parentTask          GenerationTask?  @relation("TaskParent", fields: [parentTaskId], references: [id], onDelete: SetNull)
+  childTasks          GenerationTask[] @relation("TaskParent")
+  parentAssetId       String?
+  parentAsset         ImageAsset?      @relation("ParentAsset", fields: [parentAssetId], references: [id], onDelete: SetNull)
+  submissionStartedAt DateTime?
+  submittedAt         DateTime?
+  nextPollAt          DateTime?
+  pollWindowStartedAt DateTime?
+  pollAttempts        Int              @default(0)
+  leaseUntil          DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  deletedAt           DateTime?
+  assets              TaskAsset[]
+
+  @@unique([provider, providerTaskId])
+  @@index([status, nextPollAt])
+  @@index([createdAt])
+  @@index([conversationId])
+  @@index([parentTaskId])
+  @@index([deletedAt])
+}
+
+model ImageAsset {
+  id                  String           @id @default(cuid())
+  storageKey          String           @unique
+  mimeType            String
+  sizeBytes           Int
+  width               Int
+  height              Int
+  sha256              String
+  origin              AssetOrigin
+  thumbnailStorageKey String?
+  thumbnailMimeType   String?
+  createdAt           DateTime         @default(now())
+  deletedAt           DateTime?
+  taskAssets          TaskAsset[]
+  parentForTasks      GenerationTask[] @relation("ParentAsset")
+
+  @@index([sha256])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+model TaskAsset {
+  id        String         @id @default(cuid())
+  taskId    String
+  task      GenerationTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  assetId   String
+  asset     ImageAsset     @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  relation  AssetRelation
+  sortOrder Int
+  createdAt DateTime       @default(now())
+
+  @@unique([taskId, relation, sortOrder])
+  @@index([taskId])
+  @@index([assetId])
+}
+
+model WorkerHeartbeat {
+  workerId   String   @id
+  version    String
+  startedAt  DateTime
+  lastSeenAt DateTime
+}

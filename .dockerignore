@@ -1,0 +1,13 @@
+node_modules
+.next
+dist
+coverage
+.git
+.env
+.env.*
+!.env.example
+*.log
+开发文档.md
+需求文档.md
+AGENTS.md
+tests

@@ -1,0 +1,11 @@
+{
+  "capturedAt": "2026-11-17T09:00:53.103Z",
+  "httpStatus": 503,
+  "response": {
+    "error": {
+      "code": "model_not_found",
+      "message": "No available channel for model invalid-model under group v_special_randian (distributor) (request id: 202611170900529945470088268d9d6gEGQKI0O)",
+      "type": "new_api_error"
+    }
+  }
+}

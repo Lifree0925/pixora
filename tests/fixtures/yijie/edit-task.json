@@ -1,0 +1,16 @@
+{
+  "capturedAt": "2026-11-17T08:55:44.679Z",
+  "response": {
+    "id": "task_ROwDK8IZPXInH2qTcMV5MvEKYEmAdYOV",
+    "object": "image.edit",
+    "created": 1794905690,
+    "status": "succeeded",
+    "progress": 100,
+    "model": "gr-gpt-image-2",
+    "data": [
+      {
+        "url": "<redacted-url>"
+      }
+    ]
+  }
+}

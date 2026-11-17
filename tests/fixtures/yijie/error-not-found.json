@@ -1,0 +1,9 @@
+{
+  "capturedAt": "2026-11-17T09:00:53.262Z",
+  "httpStatus": 404,
+  "response": {
+    "code": "task_not_exist",
+    "message": "task_not_exist",
+    "data": null
+  }
+}

@@ -7,6 +7,11 @@ coverage
 .env.*
 !.env.example
 *.log
+*.tsbuildinfo
+.DS_Store
+.agents
+.aws
+.codex
 开发文档.md
 需求文档.md
 AGENTS.md

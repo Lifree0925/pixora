@@ -124,11 +124,20 @@ curl -X POST -F "file=@test.png;type=image/png" http://127.0.0.1:3000/api/upload
 ```bash
 cp .env.example .env
 # 填写 YIJIE_API_KEY 和 Supabase Storage 配置
-docker compose up -d --build
+docker compose up -d --build --remove-orphans
+docker compose ps
 docker compose logs -f web worker
 ```
 
 应用默认绑定 `127.0.0.1:3000`，不会开放到局域网或公网。
+
+镜像结构：
+
+- `pixora-app:local`：web 与 worker 共用，只包含 Next.js standalone、静态资源、worker bundle 和必要运行时依赖。
+- `pixora-migrate:local`：只包含精确版本的 Prisma CLI 和迁移文件，不加载应用环境变量。
+- web/worker 使用非 root 用户，OpenSSL、日志轮转和 worker 心跳健康检查都已配置。
+
+升级后如需清理旧镜像，先用 `docker images` 核对 Repository/Tag，再删除未被容器引用的旧镜像 ID。不要直接运行全局 `docker system prune`，本机还有其他项目共用 Docker 缓存。
 
 ## 数据库迁移
 
@@ -137,7 +146,7 @@ pnpm db:generate
 pnpm db:migrate
 ```
 
-Docker 中由 `migrate` 服务执行 `prisma migrate deploy`。
+Docker 中由独立 `migrate` 服务执行 `prisma migrate deploy`。
 
 ## 健康检查
 
@@ -207,7 +216,7 @@ MinIO 仅用于本地开发或非编辑场景。编辑功能优先使用 Supabas
 
 ## 验收状态
 
-- `pnpm verify` 通过（14 个单元测试）。
+- `pnpm lint`、`pnpm typecheck`、`pnpm test` 通过（25 个单元测试）；Docker 内 Next.js 生产构建通过。
 - `pnpm storage:check` 通过。
 - `pnpm e2e:mock` 通过（编译后的 worker）。
 - Phase 0.5 真实文生图三种尺寸、单图编辑、多图融合通过。
@@ -215,10 +224,10 @@ MinIO 仅用于本地开发或非编辑场景。编辑功能优先使用 Supabas
 - 无头 Chrome 检查 ChatGPT 式创作页和设置弹层通过；输入框自动扩展、发送后清空、侧边栏收起、结果图点击缩放正常；当前模型和参数可见。
 - `localhost:3000` 与 `127.0.0.1:3000` 均可提交；非本机 Origin 仍被拒绝。
 - 幂等重复提交、数据库重启持久化、Docker 健康检查通过。
+- 镜像重构后 `pixora-app:local` 约 517MB（旧镜像 1.75GB）；web、worker、db 均为 healthy。
 
 已知限制：真实上游的 429、失败、无 `data` 故障注入尚未执行；相关分支由 mock/单元测试覆盖。
 
 ## 已知问题
 
-- 基于 `node:22-bookworm-slim` 的 Docker 镜像在 Prisma 初始化时可能提示未检测到 OpenSSL，并回退到 `openssl-1.1.x`。当前数据库迁移和 Prisma 查询已实测可用；后续可在镜像中补 `openssl` 并重新构建。
 - 结果 CDN 在当前网络需要 `OUTBOUND_PROXY_URL`，否则会出现 `ENETUNREACH`。

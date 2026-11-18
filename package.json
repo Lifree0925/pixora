@@ -20,7 +20,7 @@
     "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "storage:check": "tsx scripts/check-storage.ts",
     "e2e:mock": "tsx scripts/e2e-mock.ts",
-    "worker:build": "esbuild worker/index.ts --bundle --platform=node --format=cjs --target=node22 --outfile=dist/worker/index.js --external:@prisma/client --external:sharp --external:next",
+    "worker:build": "esbuild worker/index.ts --bundle --platform=node --format=cjs --target=node22 --outfile=dist/worker/index.js --external:@prisma/client --external:sharp",
     "probe:prepare": "tsx scripts/prepare-probe-assets.ts prepare",
     "probe:cleanup": "tsx scripts/prepare-probe-assets.ts cleanup"
   },

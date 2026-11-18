@@ -8,6 +8,7 @@ import type {
 } from "../contracts/image-provider";
 import { ProviderError } from "../contracts/image-provider";
 import { downloadRemoteImage } from "../../lib/security/safe-fetch";
+import { fileTypeFromBuffer } from "file-type";
 
 export type YijieApiStyle = "async-images" | "gemini-generate-content";
 
@@ -24,6 +25,13 @@ const JSON_HEADERS = {
   Accept: "application/json",
 };
 
+const GEMINI_INPUT_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+export interface GeminiInlineImageInput {
+  mimeType: string;
+  data: string;
+}
+
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
 }
@@ -38,7 +46,7 @@ export function normalizeProviderStatus(value: unknown): ProviderTaskStatus {
   }
 
   const normalized = value.toLowerCase();
-  if (["queued", "pending", "waiting"].includes(normalized)) {
+  if (["submitted", "queued", "pending", "waiting"].includes(normalized)) {
     return "queued";
   }
   if (["processing", "in_progress", "running"].includes(normalized)) {
@@ -94,6 +102,33 @@ export function extractProviderError(value: unknown): string | undefined {
   return error ? (asString(error.message) ?? asString(error.code)) : undefined;
 }
 
+export function parseAsyncTaskCreation(value: unknown): ProviderTaskCreation {
+  const root = asRecord(value);
+  const providerTaskId = extractProviderTaskId(value);
+  const status = normalizeProviderStatus(root?.status);
+  const outputUrls = extractOutputUrls(value);
+  const error = extractProviderError(value);
+
+  if (status === "succeeded" && outputUrls.length > 0) {
+    return { providerTaskId, status, outputUrls, error, raw: value };
+  }
+
+  if (status === "failed") {
+    return { providerTaskId, status, outputUrls, error, raw: value };
+  }
+
+  if (!providerTaskId) {
+    throw new ProviderError({
+      code: "PROVIDER_RESPONSE_INVALID",
+      message: "一阶提交响应缺少任务 ID 或可直接保存的结果 URL",
+      retryable: false,
+      ambiguous: true,
+    });
+  }
+
+  return { providerTaskId, status, outputUrls, error, raw: value };
+}
+
 export function buildTextTaskBody(input: {
   prompt: string;
   size: string;
@@ -124,7 +159,11 @@ export function buildEditTaskBody(input: {
   };
 }
 
-export function buildGeminiNativeBody(input: { prompt: string; size: string }) {
+export function buildGeminiNativeBody(input: {
+  prompt: string;
+  size: string;
+  images?: GeminiInlineImageInput[];
+}) {
   const aspectRatio = GEMINI_ASPECT_RATIO_BY_SIZE[input.size];
   if (!aspectRatio) {
     throw new ProviderError({
@@ -139,7 +178,15 @@ export function buildGeminiNativeBody(input: { prompt: string; size: string }) {
     contents: [
       {
         role: "user",
-        parts: [{ text: input.prompt }],
+        parts: [
+          { text: input.prompt },
+          ...(input.images ?? []).map((image) => ({
+            inlineData: {
+              mimeType: image.mimeType,
+              data: image.data,
+            },
+          })),
+        ],
       },
     ],
     generationConfig: {
@@ -150,6 +197,39 @@ export function buildGeminiNativeBody(input: { prompt: string; size: string }) {
       },
     },
   };
+}
+
+export async function loadGeminiInlineImages(
+  imageUrls: string[],
+  options: {
+    maxBytes: number;
+    download?: (
+      url: string,
+      maxBytes: number,
+    ) => Promise<{ buffer: Buffer; contentType?: string }>;
+  },
+): Promise<GeminiInlineImageInput[]> {
+  const download = options.download ?? downloadRemoteImage;
+  const images: GeminiInlineImageInput[] = [];
+
+  for (const imageUrl of imageUrls) {
+    const downloaded = await download(imageUrl, options.maxBytes);
+    const detected = await fileTypeFromBuffer(downloaded.buffer);
+    if (!detected || !GEMINI_INPUT_MIME_TYPES.has(detected.mime)) {
+      throw new ProviderError({
+        code: "PROVIDER_REJECTED",
+        message: "Gemini 参考图必须是 PNG、JPEG 或 WebP",
+        retryable: false,
+        ambiguous: false,
+      });
+    }
+    images.push({
+      mimeType: detected.mime,
+      data: downloaded.buffer.toString("base64"),
+    });
+  }
+
+  return images;
 }
 
 function summarizeGeminiResponse(value: unknown): string {
@@ -366,7 +446,7 @@ export class YijieImageProvider implements ImageProvider {
           code: "PROVIDER_NOT_FOUND",
           message,
           status: response.status,
-          retryable: true,
+          retryable: false,
           ambiguous: false,
         });
       }
@@ -421,16 +501,7 @@ export class YijieImageProvider implements ImageProvider {
         }),
       ),
     });
-    const providerTaskId = extractProviderTaskId(raw);
-    if (!providerTaskId) {
-      throw new ProviderError({
-        code: "PROVIDER_RESPONSE_INVALID",
-        message: "一阶提交响应缺少任务 ID",
-        retryable: false,
-        ambiguous: true,
-      });
-    }
-    return { providerTaskId, raw };
+    return parseAsyncTaskCreation(raw);
   }
 
   async createEditTask(input: {
@@ -440,12 +511,7 @@ export class YijieImageProvider implements ImageProvider {
     parameters?: ProviderParameters;
   }): Promise<ProviderTaskCreation> {
     if (this.apiStyle === "gemini-generate-content") {
-      throw new ProviderError({
-        code: "PROVIDER_UNSUPPORTED",
-        message: "Gemini 原生图片编辑适配尚未完成，请先使用文生图或 GPT 系模型",
-        retryable: false,
-        ambiguous: false,
-      });
+      return this.createGeminiNativeTask(input);
     }
 
     const raw = await this.request("/v1/images/edits/async", {
@@ -460,29 +526,30 @@ export class YijieImageProvider implements ImageProvider {
         }),
       ),
     });
-    const providerTaskId = extractProviderTaskId(raw);
-    if (!providerTaskId) {
-      throw new ProviderError({
-        code: "PROVIDER_RESPONSE_INVALID",
-        message: "一阶提交响应缺少任务 ID",
-        retryable: false,
-        ambiguous: true,
-      });
-    }
-    return { providerTaskId, raw };
+    return parseAsyncTaskCreation(raw);
   }
 
   private async createGeminiNativeTask(input: {
     prompt: string;
     size: string;
+    imageUrls?: string[];
   }): Promise<ProviderTaskCreation> {
+    const images = await loadGeminiInlineImages(input.imageUrls ?? [], {
+      maxBytes: this.nativeMaxBytes,
+    });
     let raw: unknown;
     try {
       raw = await this.request(
         `/v1beta/models/${encodeURIComponent(this.model)}:generateContent`,
         {
           method: "POST",
-          body: JSON.stringify(buildGeminiNativeBody(input)),
+          body: JSON.stringify(
+            buildGeminiNativeBody({
+              prompt: input.prompt,
+              size: input.size,
+              images,
+            }),
+          ),
         },
         this.nativeTimeoutMs,
       );

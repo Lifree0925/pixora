@@ -68,7 +68,7 @@ MVP 默认仅监听 `127.0.0.1`，不开放局域网或公网访问。若后续�
 | `gpt-image-2.5-sunburst` | `gpt-image-2.5-sunburst-优化版` | 当前账号可用的异步图片模型 |
 | `gemini-nano-banana-2.1` | `gemini-nano-banana-2.1` | Gemini 原生图片模型，走 `generateContent` |
 
-当前账号的 `/v1/models` 不提供裸名 `gpt-image-2.5-flare`/`sunburst`，只提供 `-优化版` 和 `-OAI`。本项目使用已验证可走异步任务、返回 URL 的 `-优化版`；不要使用 `-OAI`、`-官方` 或 GR 别名替代。
+2026-11-18 免费复查当前账号 `/v1/models`：不提供裸名 `gpt-image-2.5-flare`/`sunburst`，但提供 `-优化版`、`-官方` 和 `gr-gpt-image-2`。本项目使用已验证可走异步任务、返回 URL 的 `-优化版`；不要用 `-官方` 或 GR 别名替代异步链路。
 
 Gemini 图片任务接口当前不可用：异步返回 `gemini-nano-banana-2.1-c` 不支持，同步只支持 Imagen。Gemini 必须走原生 `POST /v1beta/models/{model}:generateContent`，传入 `generationConfig.responseModalities=["TEXT","IMAGE"]` 和 `imageConfig`。响应可能是 `inlineData` 或 `fileData.fileUri`，两种都必须支持。
 
@@ -130,19 +130,19 @@ POST /v1/images/edits/async
 
 ### 尺寸与参数
 
-GPT Image 2.0 已实测请求尺寸为 `1024x1024`、`1024x1536`、`1536x1024`；`1024x1024` 请求实际可能返回 `1254x1254`，必须保存并展示实际宽高。
+GPT Image 2.0 已实测请求尺寸为 `1024x1024`、`1024x1536`、`1536x1024`；`1024x1024` 请求实际可能返回 `1254x1254`，必须保存并展示实际宽高。`gr-gpt-image-2` 已确认 `size` 和 `background` 生效，其中 `background=transparent` 已通过真实历史任务验证；其他参数不得展示或透传。
 
-GPT Image 2.5 当前登记 1K/2K/4K 预设，官方约束为宽高都是 16 的倍数、宽高比 1:3–3:1、最长边不超过 3840；超过 `2560x1440` 为实验档。2K/4K 与 `quality=xhigh/max` 可能进入更高计费档，Phase 0.5 必须逐项实测。
+GPT Image 2.5 当前登记 1K/2K/4K 预设，覆盖 1:1、3:2、2:3、16:9、9:16；官方约束为宽高都是 16 的倍数、宽高比 1:3–3:1、最长边不超过 3840，超过 `2560x1440` 为实验档。16:9/9:16 必须使用真实比例尺寸，不能把 `1536x1024` 标成 16:9。2K/4K 与 `quality=xhigh/max` 可能进入更高计费档，Phase 0.5 必须逐项实测。
 
 Gemini Nano Banana 2.1 当前只登记 1K 常用画幅，已验证通过原生 `generationConfig.imageConfig` 映射为 `1:1`/`3:2`/`2:3`/`16:9`/`9:16` 与 `imageSize=1K`。不要宣传 2K/4K，也不要改用图片异步接口。
 
 模型参数以官方 Images 基础接口和模型 registry 为准，按模型分别登记：
 
-- GPT Image 2.0：`size`、`quality`（`auto`/`low`/`medium`/`high`）、`background`（`auto`/`opaque`）、`output_format`、`output_compression`、`moderation`。
-- GPT Image 2.5：在 2.0 基础上增加 `quality=xhigh/max`、`complexity`（`low`/`medium`/`high`）和 `background=transparent`；透明背景只能搭配 PNG/WebP。
+- GPT Image 2.0：`size`、`background`（`auto`/`opaque`/`transparent`）；`gr-gpt-image-2` 不展示或透传 `quality`、`output_format`、`output_compression`、`moderation`。透明背景按渠道 PNG 输出处理。
+- GPT Image 2.5：`quality`（`auto`/`low`/`medium`/`high`/`xhigh`/`max`）、`complexity`（默认 `high`）、`background`（含 `transparent`，只能搭配 PNG/WebP）、`output_format`、整数 `output_compression` 和 `moderation`。
 - Gemini Nano Banana 2.1：当前只开放 `size`，由 Adapter 映射为 `imageConfig`，不发送 GPT 专属参数。
 
-默认值只写入任务快照，用户改动过的非默认参数才透传上游。渠道可能忽略部分扩展字段，以实际结果为准。
+默认值只写入任务快照，用户改动过的非默认参数才透传上游；因此 registry 默认值必须与上游默认值一致，否则用户无法通过“选择默认值”显式下发该值。渠道可能忽略部分扩展字段，以实际结果为准。
 
 仍然不要发送 `n`、`response_format`、`watermark`、`mask`。GPT Image 2.5 官方接口支持 `n` 1–10，但本项目产品固定单输出，发送层继续省略 `n`；不要把“支持多张”写成上游限制。
 
@@ -156,7 +156,7 @@ Gemini Nano Banana 2.1 当前只登记 1K 常用画幅，已验证通过原生 `
 
 ### 契约验证与能力开关
 
-- 单图编辑和多图融合必须先完成 Phase 0.5 真实接口验证。Gemini 原生 Provider 当前只实现文生图；编辑/多图开关必须保持 `false`，直到内联参考图和结果链路验证通过。
+- 单图编辑和多图融合必须先完成 Phase 0.5 真实接口验证。Gemini 原生 Provider 已实现内联参考图编辑，并在 2026-11-18 完成单图/多图真实验证；对应开关可保持 `true`。
 - 验证开关按模型族独立控制，不能共用全局开关：
   - `gr-gpt-image-2`：`YIJIE_EDIT_VERIFIED`、`YIJIE_MULTI_IMAGE_EDIT_VERIFIED`
   - GPT Image 2.5：`YIJIE_GPT_IMAGE_2_5_EDIT_VERIFIED`、`YIJIE_GPT_IMAGE_2_5_MULTI_IMAGE_EDIT_VERIFIED`
@@ -195,6 +195,7 @@ Gemini Nano Banana 2.1 当前只登记 1K 常用画幅，已验证通过原生 `
 - 保存上游任务 ID、模型名、脱敏请求快照、状态、错误信息和结果资产。
 - 结果图片必须下载并保存到自己的存储（第一版 Supabase Storage，后续可加本地磁盘驱动）；不能只保存一阶临时 URL。
 - 任务轮询必须有最大等待时间、退避间隔、失败终态和可恢复的超时状态。
+- 上游 `submitted` 归一为排队/处理中；任务查询 404 是失败终态，不能继续重试到超时；提交响应已成功并带结果 URL 时必须直接保存，不能因缺少任务 ID 判失败。
 - 任务创建必须有服务端幂等保护，避免重复点击、多标签页或浏览器重试造成多次上游扣费。
 - 任务状态机必须覆盖 `pending`、`submitting`、`processing`、`timed_out`、`submit_unknown`、`succeeded`、`failed`。
 - worker 使用数据库租约领取任务；`pending` 和 `processing` 可恢复，`submitting` 租约过期进入 `submit_unknown`，不能自动重复提交。
@@ -281,17 +282,18 @@ Dockerfile
 
 ## 9. 开发执行规则
 
-1. 开始编码前先检查仓库现状，不要覆盖已有项目。
-2. 先阅读 `需求文档.md` 和 `开发文档.md`。
-3. 按开发文档的阶段逐步实施，每个阶段完成后运行 lint、typecheck、tests 和 build。
-4. 不要一次性生成所有功能后才验证。
-5. 不确定的一阶 API 字段必须标记为待验证，并通过真实 API Key 的手动集成测试确认；不能猜测。
-6. 单图编辑和多图融合开发前必须先完成 Phase 0.5 契约验证；验证前保持能力开关关闭。
-7. 不要擅自把同步接口改成异步接口或反过来；本项目使用 worker 异步提交和轮询。
-8. 真实付费 API 测试前必须确认费用；探测脚本默认 dry-run。
-9. 任何需要用户提供的密钥、域名、存储配置，先使用环境变量占位，并在 `.env.example` 和 README 中说明。
-10. 每次完成阶段后，汇报改动文件、验证命令、验证结果、未解决问题。
-11. 修改 API 契约、任务状态、数据模型或验收标准时，同步更新三份文档。
+1. 日常代码改动必须在 `develop` 分支进行；`main` 保持干净，不直接写代码，只用于在 `develop` 出问题时回滚到正常基线。测试通过后再将 `develop` 并入 `main` 并提交远程仓库。
+2. 开始编码前先检查仓库现状，不要覆盖已有项目。
+3. 先阅读 `需求文档.md` 和 `开发文档.md`。
+4. 按开发文档的阶段逐步实施，每个阶段完成后运行 lint、typecheck、tests 和 build。
+5. 不要一次性生成所有功能后才验证。
+6. 不确定的一阶 API 字段必须标记为待验证，并通过真实 API Key 的手动集成测试确认；不能猜测。
+7. 单图编辑和多图融合开发前必须先完成 Phase 0.5 契约验证；验证前保持能力开关关闭。
+8. 不要擅自把同步接口改成异步接口或反过来；本项目使用 worker 异步提交和轮询。
+9. 真实付费 API 测试前必须确认费用；探测脚本默认 dry-run。
+10. 任何需要用户提供的密钥、域名、存储配置，先使用环境变量占位，并在 `.env.example` 和 README 中说明。
+11. 每次完成阶段后，汇报改动文件、验证命令、验证结果、未解决问题。
+12. 修改 API 契约、任务状态、数据模型或验收标准时，同步更新三份文档。
 
 ## 10. 完成定义
 

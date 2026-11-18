@@ -42,11 +42,17 @@ function nextPollAt(attempts: number, retryAfterSeconds?: number): Date {
   return new Date(Date.now() + computeNextDelaySeconds(attempts, retryAfterSeconds) * 1000);
 }
 
-async function markFailed(taskId: string, code: string, message?: string): Promise<void> {
+async function markFailed(
+  taskId: string,
+  code: string,
+  message?: string,
+  providerTaskId?: string,
+): Promise<void> {
   await prisma.generationTask.update({
     where: { id: taskId },
     data: {
       status: "failed",
+      ...(providerTaskId ? { providerTaskId } : {}),
       errorCode: code,
       errorMessage: truncateMessage(message) ?? code,
       completedAt: new Date(),
@@ -108,6 +114,7 @@ async function completeTaskWithBuffer(
   taskId: string,
   buffer: Buffer,
   submittedAt?: Date,
+  providerTaskId?: string,
 ): Promise<void> {
   const generated = await storeGeneratedImage(buffer);
 
@@ -126,6 +133,7 @@ async function completeTaskWithBuffer(
         data: {
           status: "succeeded",
           providerRawStatus: "succeeded",
+          ...(providerTaskId ? { providerTaskId } : {}),
           submittedAt,
           completedAt: new Date(),
           nextPollAt: null,
@@ -273,10 +281,29 @@ async function submitTask(taskId: string): Promise<void> {
       return;
     }
 
+    if (result.status === "failed") {
+      await markFailed(
+        task.id,
+        "PROVIDER_TASK_FAILED",
+        result.error ?? "上游提交阶段返回失败",
+        result.providerTaskId,
+      );
+      return;
+    }
+
+    if (result.outputUrls && result.outputUrls.length > 0) {
+      const downloaded = await downloadRemoteImage(
+        result.outputUrls[0],
+        env.MAX_RESULT_MB * 1024 * 1024,
+      );
+      await completeTaskWithBuffer(task.id, downloaded.buffer, new Date(), result.providerTaskId);
+      return;
+    }
+
     if (!result.providerTaskId) {
       throw new ProviderError({
         code: "PROVIDER_RESPONSE_INVALID",
-        message: "一阶提交响应缺少任务 ID",
+        message: "一阶提交响应缺少任务 ID 或可直接保存的结果 URL",
         retryable: false,
         ambiguous: true,
       });
@@ -292,7 +319,7 @@ async function submitTask(taskId: string): Promise<void> {
         pollWindowStartedAt: now,
         nextPollAt: now,
         leaseUntil: null,
-        providerRawStatus: "submitted",
+        providerRawStatus: result.status === "unknown" ? "submitted" : result.status,
         errorCode: null,
         errorMessage: null,
       },

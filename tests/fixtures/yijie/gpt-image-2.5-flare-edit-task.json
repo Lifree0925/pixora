@@ -1,0 +1,16 @@
+{
+  "capturedAt": "2026-11-18T08:17:07.292Z",
+  "response": {
+    "id": "task_AHfMlesN6aazW4lVJVRZACeMhqnTcmVP",
+    "object": "image.edit",
+    "created": 1794989692,
+    "status": "succeeded",
+    "progress": 100,
+    "model": "gpt-image-2.5-flare-优化版",
+    "data": [
+      {
+        "url": "<redacted-url>"
+      }
+    ]
+  }
+}

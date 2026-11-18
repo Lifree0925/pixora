@@ -47,12 +47,18 @@ describe("model registry", () => {
       "1:1",
       "3:2",
       "2:3",
+      "16:9",
+      "9:16",
       "1:1",
       "3:2",
       "2:3",
+      "16:9",
+      "9:16",
       "1:1",
       "3:2",
       "2:3",
+      "16:9",
+      "9:16",
     ]);
     expect(getModelDefinition("gemini-nano-banana-2.1").sizes.map((size) => size.label)).toEqual([
       "1:1",
@@ -63,24 +69,51 @@ describe("model registry", () => {
     ]);
   });
 
-  it("normalizes GPT Image 2 official parameters and rejects unknown fields", () => {
+  it("keeps GPT Image 2.5 sizes within the documented dimension constraints", () => {
+    for (const option of getModelDefinition("gpt-image-2.5-flare").sizes) {
+      const [width, height] = option.value.split("x").map(Number);
+      expect(width! % 16).toBe(0);
+      expect(height! % 16).toBe(0);
+      expect(Math.max(width!, height!)).toBeLessThanOrEqual(3840);
+      expect(Math.min(width!, height!) / Math.max(width!, height!)).toBeGreaterThanOrEqual(1 / 3);
+      expect(width! * height!).toBeGreaterThanOrEqual(655_360);
+      expect(width! * height!).toBeLessThanOrEqual(8_294_400);
+    }
+  });
+
+  it("limits gr-gpt-image-2 to its verified size and background parameters", () => {
     const model = getModelDefinition("gr-gpt-image-2");
+    expect(model.parameters.map((parameter) => parameter.key)).toEqual(["size", "background"]);
     expect(normalizeModelParameters({ model, size: "1024x1024", parameters: {} })).toEqual({
       size: "1024x1024",
-      quality: "auto",
       background: "auto",
-      output_format: "png",
-      output_compression: 100,
-      moderation: "auto",
     });
 
-    expect(
+    expect(() =>
       normalizeModelParameters({
         model,
         size: "1024x1024",
         parameters: { quality: "high" },
       }),
-    ).toMatchObject({ quality: "high" });
+    ).toThrow(ModelError);
+
+    expect(
+      normalizeModelParameters({
+        model,
+        size: "1024x1024",
+        parameters: { background: "transparent" },
+      }),
+    ).toEqual({
+      size: "1024x1024",
+      background: "transparent",
+    });
+
+    expect(
+      getProviderParameterOverrides(model, {
+        size: "1024x1024",
+        background: "transparent",
+      }),
+    ).toEqual({ background: "transparent" });
 
     expect(() =>
       normalizeModelParameters({
@@ -120,7 +153,7 @@ describe("model registry", () => {
     ).toMatchObject({
       size: "2880x2880",
       quality: "xhigh",
-      complexity: "low",
+      complexity: "high",
       background: "transparent",
     });
   });
@@ -141,6 +174,14 @@ describe("model registry", () => {
         model,
         size: "1024x1024",
         parameters: { output_format: "png", output_compression: 80 },
+      }),
+    ).toThrow(ModelError);
+
+    expect(() =>
+      normalizeModelParameters({
+        model,
+        size: "1024x1024",
+        parameters: { output_format: "webp", output_compression: 80.5 },
       }),
     ).toThrow(ModelError);
   });
@@ -185,7 +226,7 @@ describe("model registry", () => {
     const parameters = {
       size: "1024x1024",
       quality: "xhigh",
-      complexity: "low",
+      complexity: "high",
       background: "transparent",
       output_format: "png",
       output_compression: 100,
@@ -197,7 +238,7 @@ describe("model registry", () => {
       background: "transparent",
     });
     expect(
-      getProviderParameterOverrides(model, { ...parameters, complexity: "high" }),
-    ).toMatchObject({ complexity: "high" });
+      getProviderParameterOverrides(model, { ...parameters, complexity: "low" }),
+    ).toMatchObject({ complexity: "low" });
   });
 });

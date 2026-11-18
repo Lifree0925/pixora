@@ -21,6 +21,7 @@ import { ImageViewer } from "@/components/ui/image-viewer";
 import { ComposerMenu } from "@/components/studio/composer-menu";
 import { cn } from "@/lib/utils";
 import { fetchJson, ClientApiError } from "@/lib/client/api";
+import { groupSizeOptions } from "@/modules/models/size-options";
 import { getTaskStatusLabel } from "@/lib/task-status";
 import type { AssetView, ConversationView, ModelInfo, TaskView } from "@/types/api";
 
@@ -29,12 +30,6 @@ const MODE_LABELS: Record<string, string> = {
   image_edit: "图片编辑",
   multi_image_edit: "多图融合",
 };
-
-const ORIENTATIONS = [
-  { label: "1:1", value: "1024x1024" },
-  { label: "2:3", value: "1024x1536" },
-  { label: "3:2", value: "1536x1024" },
-];
 
 type ComposerMenuKey = "mode" | "orientation" | "resolution";
 type HistoryEditMode = "image_edit" | "multi_image_edit";
@@ -83,9 +78,24 @@ export function HistoryDetail() {
   const idempotencyRef = useRef(crypto.randomUUID());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const currentOrientation =
-    ORIENTATIONS.find((orientation) => orientation.value === size) ?? ORIENTATIONS[0]!;
   const historyModel = models.find((model) => model.id === conversation?.model);
+  const historySizeParameter = historyModel?.parameters.find(
+    (parameter) => parameter.key === "size",
+  );
+  const historySizeOptions = historySizeParameter?.options ?? historyModel?.sizes ?? [];
+  const groupedSizes = groupSizeOptions(historySizeOptions);
+  const currentSize =
+    groupedSizes.options.find((option) => option.value === size) ?? groupedSizes.options[0];
+  const effectiveSize = currentSize?.value ?? size;
+  const availableResolutions = currentSize
+    ? [
+        ...new Set(
+          groupedSizes.options
+            .filter((option) => option.orientationKey === currentSize.orientationKey)
+            .map((option) => option.resolution),
+        ),
+      ]
+    : [];
   const canEdit = Boolean(historyModel?.capabilities.imageEdit);
   const canMultiEdit = Boolean(historyModel?.capabilities.multiImageEdit);
   const maxAdditionalReferences = Math.max(
@@ -97,6 +107,29 @@ export function HistoryDetail() {
   const canContinue = Boolean(conversation?.latestSuccessfulTaskId && latestOutput);
   const hasEditCapability = canEdit || canMultiEdit;
   const modeReady = mode === "image_edit" ? canEdit : canMultiEdit && references.length > 0;
+
+  function selectHistoryOrientation(orientationKey: string) {
+    const next =
+      groupedSizes.options.find(
+        (option) =>
+          option.orientationKey === orientationKey &&
+          option.resolution === currentSize?.resolution,
+      ) ?? groupedSizes.options.find((option) => option.orientationKey === orientationKey);
+    if (next) {
+      setSize(next.value);
+    }
+  }
+
+  function selectHistoryResolution(resolution: string) {
+    const next = groupedSizes.options.find(
+      (option) =>
+        option.resolution === resolution &&
+        option.orientationKey === currentSize?.orientationKey,
+    );
+    if (next) {
+      setSize(next.value);
+    }
+  }
 
   useEffect(() => {
     if (!composerMenu) {
@@ -293,7 +326,7 @@ export function HistoryDetail() {
           headers: { "Idempotency-Key": idempotencyRef.current },
           body: JSON.stringify({
             prompt,
-            size,
+            size: effectiveSize,
             mode,
             assetIds: mode === "multi_image_edit" ? references.map((asset) => asset.id) : [],
           }),
@@ -629,42 +662,37 @@ export function HistoryDetail() {
               />
               <ComposerMenu
                 label="画面"
-                value={currentOrientation.label}
+                value={currentSize?.orientationLabel ?? "—"}
                 open={composerMenu === "orientation"}
+                disabled={groupedSizes.orientations.length === 0}
                 onToggle={() =>
                   setComposerMenu((current) => (current === "orientation" ? null : "orientation"))
                 }
-                options={ORIENTATIONS.map((orientation) => ({
+                options={groupedSizes.orientations.map((orientation) => ({
                   label: orientation.label,
-                  hint: orientation.value,
-                  selected: orientation.value === size,
-                  onSelect: () => setSize(orientation.value),
+                  hint: groupedSizes.options.find(
+                    (option) =>
+                      option.orientationKey === orientation.key &&
+                      option.resolution === currentSize?.resolution,
+                  )?.value,
+                  selected: orientation.key === currentSize?.orientationKey,
+                  onSelect: () => selectHistoryOrientation(orientation.key),
                 }))}
               />
               <ComposerMenu
                 label="分辨率"
-                value="1K"
+                value={currentSize?.resolution ?? "—"}
                 open={composerMenu === "resolution"}
+                disabled={availableResolutions.length === 0}
                 onToggle={() =>
                   setComposerMenu((current) => (current === "resolution" ? null : "resolution"))
                 }
-                options={[
-                  {
-                    label: "1K",
-                    hint: "当前模型可用",
-                    selected: true,
-                  },
-                  {
-                    label: "2K",
-                    hint: "该档位暂未开放",
-                    disabled: true,
-                  },
-                  {
-                    label: "4K",
-                    hint: "该档位暂未开放",
-                    disabled: true,
-                  },
-                ]}
+                options={availableResolutions.map((resolution) => ({
+                  label: resolution,
+                  hint: resolution === "1K" ? "当前比例可用" : "实验档，可能计入更高费用",
+                  selected: resolution === currentSize?.resolution,
+                  onSelect: () => selectHistoryResolution(resolution),
+                }))}
               />
               {mode === "multi_image_edit" ? (
                 <>

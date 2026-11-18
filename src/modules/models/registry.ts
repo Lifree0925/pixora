@@ -23,6 +23,7 @@ export interface ModelParameterDefinition {
   min?: number;
   max?: number;
   step?: number;
+  integer?: boolean;
   help?: string;
 }
 
@@ -72,12 +73,18 @@ const GPT_IMAGE_2_5_SIZES: ModelParameterOption[] = [
   { label: "1:1", value: "1024x1024" },
   { label: "3:2", value: "1536x1024" },
   { label: "2:3", value: "1024x1536" },
+  { label: "16:9", value: "1536x864" },
+  { label: "9:16", value: "864x1536" },
   { label: "1:1", value: "2048x2048" },
   { label: "3:2", value: "2016x1344" },
   { label: "2:3", value: "1344x2016" },
+  { label: "16:9", value: "2560x1440" },
+  { label: "9:16", value: "1440x2560" },
   { label: "1:1", value: "2880x2880" },
   { label: "3:2", value: "3504x2336" },
   { label: "2:3", value: "2336x3504" },
+  { label: "16:9", value: "3840x2160" },
+  { label: "9:16", value: "2160x3840" },
 ];
 
 const GEMINI_NANO_BANANA_SIZES: ModelParameterOption[] = [
@@ -120,20 +127,11 @@ function createQualityParameter(
   };
 }
 
-const GPT_IMAGE_2_PARAMETERS: ModelParameterDefinition[] = [
+const GR_GPT_IMAGE_2_PARAMETERS: ModelParameterDefinition[] = [
   createSizeParameter(
     GPT_IMAGE_2_SIZES,
     "1024x1024",
-    "GPT Image 2 支持标准尺寸和自定义尺寸；1024x1024 请求实测可能返回 1254x1254，实际输出像素以结果文件为准。",
-  ),
-  createQualityParameter(
-    [
-      { label: "自动", value: "auto" },
-      { label: "低", value: "low" },
-      { label: "中", value: "medium" },
-      { label: "高", value: "high" },
-    ],
-    "GPT Image 2 不支持 xhigh 和 max；最终档位仍以当前渠道实际承接情况为准。",
+    "gr-gpt-image-2 已确认 size 和背景参数生效；1024x1024 请求实测可能返回 1254x1254，实际输出像素以结果文件为准。",
   ),
   {
     key: "background",
@@ -144,44 +142,9 @@ const GPT_IMAGE_2_PARAMETERS: ModelParameterDefinition[] = [
     options: [
       { label: "自动", value: "auto" },
       { label: "不透明", value: "opaque" },
+      { label: "透明", value: "transparent" },
     ],
-    help: "官方文档把 GPT Image 2 的透明背景标为预览能力；当前渠道未验证前只开放 auto/opaque。",
-  },
-  {
-    key: "output_format",
-    label: "输出格式",
-    type: "enum",
-    group: "输出",
-    defaultValue: "png",
-    options: [
-      { label: "PNG", value: "png" },
-      { label: "JPEG", value: "jpeg" },
-      { label: "WebP", value: "webp" },
-    ],
-    help: "所选格式会随请求发送；当前渠道若固定返回其他格式，以实际文件 MIME 为准。",
-  },
-  {
-    key: "output_compression",
-    label: "压缩质量",
-    type: "number",
-    group: "输出",
-    defaultValue: 100,
-    min: 0,
-    max: 100,
-    step: 1,
-    help: "仅 JPEG / WebP 有意义，0–100，数值越高文件越大。",
-  },
-  {
-    key: "moderation",
-    label: "内容审核",
-    type: "enum",
-    group: "高级",
-    defaultValue: "auto",
-    options: [
-      { label: "自动", value: "auto" },
-      { label: "宽松", value: "low" },
-    ],
-    help: "官方参数值；实际审核规则仍以当前渠道为准。",
+    help: "透明背景已通过真实历史任务验证；输出需要 PNG 或 WebP，当前渠道默认返回 PNG。",
   },
 ];
 
@@ -189,7 +152,7 @@ const GPT_IMAGE_2_5_PARAMETERS: ModelParameterDefinition[] = [
   createSizeParameter(
     GPT_IMAGE_2_5_SIZES,
     "1024x1024",
-    "GPT Image 2.5 支持 1K/2K/4K 预设；宽高需为 16 的倍数、宽高比 1:3–3:1、最长边不超过 3840。超过 2560x1440 为官方实验档，4K 可能计入更高费用。",
+    "GPT Image 2.5 支持 1K/2K/4K 预设，并覆盖 1:1、3:2、2:3、16:9、9:16；宽高需为 16 的倍数、宽高比 1:3–3:1、最长边不超过 3840。超过 2560x1440 为官方实验档，4K 可能计入更高费用。",
   ),
   createQualityParameter(
     [
@@ -207,13 +170,13 @@ const GPT_IMAGE_2_5_PARAMETERS: ModelParameterDefinition[] = [
     label: "规划复杂度",
     type: "enum",
     group: "画面",
-    defaultValue: "low",
+    defaultValue: "high",
     options: [
       { label: "低", value: "low" },
       { label: "中", value: "medium" },
       { label: "高", value: "high" },
     ],
-    help: "控制生成前的规划深度，不直接改变渲染分辨率；本项目默认使用 low。",
+    help: "控制生成前的规划深度，不直接改变渲染分辨率；上游默认 high，选择 low/medium 时会显式透传。",
   },
   {
     key: "background",
@@ -250,6 +213,7 @@ const GPT_IMAGE_2_5_PARAMETERS: ModelParameterDefinition[] = [
     min: 0,
     max: 100,
     step: 1,
+    integer: true,
     help: "仅 JPEG / WebP 有意义；PNG 不使用压缩质量参数。",
   },
   {
@@ -289,7 +253,7 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
       multiImageEdit: true,
     },
     sizes: GPT_IMAGE_2_SIZES,
-    parameters: GPT_IMAGE_2_PARAMETERS,
+    parameters: GR_GPT_IMAGE_2_PARAMETERS,
   },
   {
     id: "gpt-image-2.5-flare",

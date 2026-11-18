@@ -10,14 +10,6 @@ const nextConfig: NextConfig = {
       "./node_modules/.pnpm/sharp@*/node_modules/sharp/**/*",
     ],
   },
-  turbopack: {
-    rules: {
-      "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
-        as: "*.css",
-      },
-    },
-  },
 };
 
 export default nextConfig;

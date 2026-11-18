@@ -21,12 +21,19 @@ export function SizePicker({
     return null;
   }
 
+  const availableResolutions = [
+    ...new Set(
+      grouped.options
+        .filter((option) => option.orientationKey === current.orientationKey)
+        .map((option) => option.resolution),
+    ),
+  ];
+
   function selectResolution(resolution: string) {
-    const next =
-      grouped.options.find(
-        (option) =>
-          option.resolution === resolution && option.orientationKey === current.orientationKey,
-      ) ?? grouped.options.find((option) => option.resolution === resolution);
+    const next = grouped.options.find(
+      (option) =>
+        option.resolution === resolution && option.orientationKey === current.orientationKey,
+    );
     if (next) {
       onChange(next.value);
     }
@@ -73,7 +80,7 @@ export function SizePicker({
       <div className="mt-4 border-t pt-4">
         <p className="text-xs font-medium">分辨率</p>
         <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="分辨率">
-          {grouped.resolutions.map((resolution) => {
+          {availableResolutions.map((resolution) => {
             const selected = current.resolution === resolution;
             return (
               <button

@@ -83,17 +83,17 @@ pnpm storage:check
 | 展示名 | 内部 ID / 上游公开名 | 说明 |
 | --- | --- | --- |
 | GPT Image 2.0 | `gr-gpt-image-2` | 已真实验证 |
-| GPT Image 2.5 Flare | `gpt-image-2.5-flare` → `gpt-image-2.5-flare-优化版` | 异步文生图已验证 |
-| GPT Image 2.5 Sunburst | `gpt-image-2.5-sunburst` → `gpt-image-2.5-sunburst-优化版` | 异步文生图已验证 |
-| Gemini Nano Banana 2.1 | `gemini-nano-banana-2.1`（原生 `generateContent`） | 文生图端到端已验证 |
+| GPT Image 2.5 Flare | `gpt-image-2.5-flare` → `gpt-image-2.5-flare-优化版` | 文生图、单图编辑、多图融合已验证 |
+| GPT Image 2.5 Sunburst | `gpt-image-2.5-sunburst` → `gpt-image-2.5-sunburst-优化版` | 文生图、单图编辑、多图融合已验证 |
+| Gemini Nano Banana 2.1 | `gemini-nano-banana-2.1`（原生 `generateContent`） | 文生图、单图编辑、多图融合已验证 |
 
 - 模型定义：`src/modules/models/registry.ts`
 - Provider 工厂：`src/providers/index.ts`
 - 前端 composer 始终显示当前模型胶囊和模式菜单；模式在左下角直接切换，模型和参数通过设置按钮打开弹层。
-- GPT Image 2.0 开放 `size`、`quality`、`background`、`output_format`、`output_compression`、`moderation`。
-- GPT Image 2.5 额外开放 `quality=xhigh/max`、`complexity` 和 `background=transparent`；透明背景只能搭配 PNG/WebP。
+- GPT Image 2.0 开放 `size` 和 `background`，透明背景已验证；其余扩展参数未开放。
+- GPT Image 2.5 开放 `quality`（含 `xhigh/max`）、`complexity` 和 `background=transparent`；透明背景只能搭配 PNG/WebP。
 - Gemini Nano Banana 2.1 当前只开放 `size`，由 Adapter 映射为原生 `imageConfig`；它不走 `/v1/images/*`，响应兼容 `inlineData` 和 `fileData.fileUri`。
-- GPT 2.5 与 Gemini 的编辑/多图能力尚未验证，对应开关保持 `false`。
+- GPT 2.5 与 Gemini 的单图、多图编辑均已通过真实历史图验证，对应开关为 `true`；Mask/Markup 尚未实现。
 - 默认值只保存在任务快照中，实际改动过的参数才会透传上游。
 - 当前渠道对部分官方扩展字段可能只透传不生效；界面会明确说明，最终以实际结果和渠道能力为准。
 - 新增模型时，同时添加模型定义、Provider 映射和对应参数校验；前端会自动渲染 registry 声明的参数。
@@ -180,7 +180,7 @@ pnpm verify:yijie --mode multi --model gemini-nano-banana-2.1 --assets-file /tmp
 pnpm probe:cleanup
 ```
 
-GPT Image 2.0 的 `YIJIE_EDIT_VERIFIED` 和 `YIJIE_MULTI_IMAGE_EDIT_VERIFIED` 已设为 `true`；GPT Image 2.5 与 Gemini 的对应开关在真实付费验证前保持 `false`。
+GPT Image 2.0、GPT Image 2.5 与 Gemini 的编辑/多图开关均已通过真实请求验证并设为 `true`。
 
 ## 端到端验证
 

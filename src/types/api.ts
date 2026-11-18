@@ -23,6 +23,7 @@ export interface ModelParameterDefinition {
   min?: number;
   max?: number;
   step?: number;
+  integer?: boolean;
   help?: string;
 }
 

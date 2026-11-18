@@ -1,0 +1,46 @@
+{
+  "capturedAt": "2026-11-18T08:23:04.963Z",
+  "response": {
+    "candidates": [
+      {
+        "content": {
+          "role": "model",
+          "parts": [
+            {
+              "inlineData": {
+                "mimeType": "image/jpeg",
+                "data": "<redacted-base64:30 chars>"
+              },
+              "thoughtSignature": "<redacted-signature:816932 chars>"
+            }
+          ]
+        },
+        "finishReason": "STOP",
+        "index": 0
+      }
+    ],
+    "usageMetadata": {
+      "promptTokenCount": 48,
+      "toolUsePromptTokenCount": 0,
+      "candidatesTokenCount": 1120,
+      "totalTokenCount": 1168,
+      "thoughtsTokenCount": 0,
+      "cachedContentTokenCount": 0,
+      "promptTokensDetails": [
+        {
+          "modality": "TEXT",
+          "tokenCount": 48
+        }
+      ],
+      "toolUsePromptTokensDetails": null,
+      "candidatesTokensDetails": [
+        {
+          "modality": "IMAGE",
+          "tokenCount": 1120
+        }
+      ]
+    },
+    "modelVersion": "gemini-nano-banana-2.1",
+    "responseId": "v1_ChZTV0Q5YXZMd0RxQ00yOG9QcnBuY0VREhdTV0Q5YXFmY0xJV2x4TjhQX2NQLXNBdw"
+  }
+}

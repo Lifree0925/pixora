@@ -15,6 +15,9 @@ export interface ProviderInlineImage {
 
 export interface ProviderTaskCreation {
   providerTaskId?: string;
+  status?: ProviderTaskStatus;
+  outputUrls?: string[];
+  error?: string;
   inlineOutput?: ProviderInlineImage;
   raw: unknown;
 }

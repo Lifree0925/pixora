@@ -14,6 +14,7 @@ import {
 import {
   buildGeminiNativeBody,
   extractGeminiImage,
+  loadGeminiInlineImages,
 } from "../src/providers/yijie/yijie-provider";
 
 type ProbeMode = "text" | "edit" | "multi";
@@ -133,7 +134,7 @@ async function loadAssetUrls(options: Options): Promise<void> {
         parsed.b?.url,
       ];
   const urls = values.filter((value): value is string => typeof value === "string" && value.length > 0);
-  options.imageUrls.push(...urls);
+  options.imageUrls.push(...(options.mode === "edit" ? urls.slice(0, 1) : urls));
 }
 
 function validateOptions(options: Options): void {
@@ -216,7 +217,9 @@ function extractOutputUrl(value: unknown): string | undefined {
 
 function sanitize(value: unknown): unknown {
   if (Array.isArray(value)) {
-    return value.map(sanitize);
+    return value.map((item) =>
+      typeof item === "string" && /^https?:\/\//i.test(item) ? "<redacted-url>" : sanitize(item),
+    );
   }
   if (!value || typeof value !== "object") {
     return value;
@@ -229,6 +232,10 @@ function sanitize(value: unknown): unknown {
       result[key] = "<redacted-url>";
     } else if (lowerKey === "b64_json" && typeof field === "string") {
       result[key] = `<redacted-b64-json:${field.length} chars>`;
+    } else if (lowerKey === "data" && typeof field === "string") {
+      result[key] = `<redacted-base64:${field.length} chars>`;
+    } else if (lowerKey === "thoughtsignature" && typeof field === "string") {
+      result[key] = `<redacted-signature:${field.length} chars>`;
     } else if (["authorization", "api_key", "apikey"].includes(lowerKey)) {
       result[key] = "<redacted>";
     } else {
@@ -259,11 +266,23 @@ async function readJson(response: Response): Promise<unknown> {
 }
 
 async function inspectResultUrl(url: string): Promise<void> {
-  const { buffer, contentType } = await downloadRemoteImage(url, 50 * 1024 * 1024);
-  const firstBytes = buffer.subarray(0, 8).toString("hex");
-  console.log(
-    `[probe] 结果 URL: content-type=${contentType}, bytes=${buffer.byteLength}, first8=${firstBytes}`,
-  );
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const { buffer, contentType } = await downloadRemoteImage(url, 50 * 1024 * 1024);
+      const firstBytes = buffer.subarray(0, 8).toString("hex");
+      console.log(
+        `[probe] 结果 URL: content-type=${contentType}, bytes=${buffer.byteLength}, first8=${firstBytes}`,
+      );
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 3) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 2_000));
+      }
+    }
+  }
+  throw lastError;
 }
 
 function modelSlug(modelId: string): string {
@@ -291,17 +310,21 @@ async function main(): Promise<void> {
   });
   const providerParameters = getProviderParameterOverrides(model, normalized);
   const isGeminiNative = model.apiStyle === "gemini-generate-content";
-  if (isGeminiNative && options.mode !== "text") {
-    throw new Error("Gemini 原生 Provider 当前只实现了文生图，编辑/多图尚未接入");
-  }
 
   const endpoint = isGeminiNative
     ? `/v1beta/models/${encodeURIComponent(model.providerModelId)}:generateContent`
     : options.mode === "text"
       ? "/v1/images/generations/async"
       : "/v1/images/edits/async";
+  const geminiImages = isGeminiNative
+    ? await loadGeminiInlineImages(options.imageUrls, { maxBytes: 50 * 1024 * 1024 })
+    : [];
   const body: Record<string, unknown> = isGeminiNative
-    ? buildGeminiNativeBody({ prompt: options.prompt, size: selectedSize })
+    ? buildGeminiNativeBody({
+        prompt: options.prompt,
+        size: selectedSize,
+        images: geminiImages,
+      })
     : {
         model: model.providerModelId,
         prompt: options.prompt,
@@ -335,7 +358,7 @@ async function main(): Promise<void> {
   }
 
   if (isGeminiNative) {
-    console.log(`[probe] 提交 Gemini 原生文生图请求到 ${endpoint}`);
+    console.log(`[probe] 提交 Gemini 原生 ${options.mode} 请求到 ${endpoint}`);
     const response = await fetch(`${config.baseUrl}${endpoint}`, {
       method: "POST",
       headers: {
@@ -347,7 +370,7 @@ async function main(): Promise<void> {
     });
     const json = await readJson(response);
     if (options.writeFixtures) {
-      await saveFixture(`${modelSlug(model.id)}-text-native`, json);
+      await saveFixture(`${modelSlug(model.id)}-${options.mode}-native`, json);
     }
     if (!response.ok) {
       console.error(`[probe] Gemini 原生请求失败 HTTP ${response.status}`);

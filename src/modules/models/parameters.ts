@@ -20,6 +20,9 @@ function validateValue(
     if (typeof value !== "number" || !Number.isFinite(value)) {
       throw new ModelError("INVALID_MODEL_PARAMETER", `${parameter.label} 必须是数字`);
     }
+    if (parameter.integer && !Number.isInteger(value)) {
+      throw new ModelError("INVALID_MODEL_PARAMETER", `${parameter.label} 必须是整数`);
+    }
     if (parameter.min !== undefined && value < parameter.min) {
       throw new ModelError(
         "INVALID_MODEL_PARAMETER",

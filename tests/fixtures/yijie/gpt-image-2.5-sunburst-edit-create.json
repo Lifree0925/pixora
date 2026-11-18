@@ -1,0 +1,11 @@
+{
+  "capturedAt": "2026-11-18T08:19:44.888Z",
+  "response": {
+    "id": "task_6lzBX7BbqlWMUKTzTZBvOK5AfakhCxVv",
+    "object": "image.edit",
+    "created": 1794989984,
+    "status": "queued",
+    "progress": 0,
+    "model": "gpt-image-2.5-sunburst-优化版"
+  }
+}

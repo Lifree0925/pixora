@@ -17,6 +17,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { ImageDownloadMenu } from "@/components/ui/image-download-menu";
 import { ImageViewer } from "@/components/ui/image-viewer";
+import { ModelPicker } from "@/components/studio/model-picker";
+import { SizePicker } from "@/components/studio/size-picker";
 import { cn } from "@/lib/utils";
 import { fetchJson, ClientApiError } from "@/lib/client/api";
 import { getTaskStatusLabel } from "@/lib/task-status";
@@ -35,6 +37,23 @@ const MODE_LABELS: Record<GenerationMode, string> = {
 };
 
 const ACTIVE_STATUSES = new Set(["pending", "submitting", "processing"]);
+const MODEL_STORAGE_KEY = "pixora.create.selected-model";
+
+function readStoredModelId(): string {
+  try {
+    return window.localStorage.getItem(MODEL_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function rememberModelId(modelId: string) {
+  try {
+    window.localStorage.setItem(MODEL_STORAGE_KEY, modelId);
+  } catch {
+    // 忽略存储不可用，模型选择在当前会话内仍然有效。
+  }
+}
 
 function errorMessage(error: unknown): string {
   return error instanceof ClientApiError || error instanceof Error
@@ -132,11 +151,13 @@ export function CreateWorkspace() {
     void fetchJson<{ models: ModelInfo[] }>("/api/models")
       .then((data) => {
         setModels(data.models);
-        const first = data.models[0];
-        if (first) {
-          setModelId(first.id);
-          setSize(sizeOf(first));
-          setExtraParameters(extraDefaults(first));
+        const storedModelId = readStoredModelId();
+        const initialModel =
+          data.models.find((model) => model.id === storedModelId) ?? data.models[0];
+        if (initialModel) {
+          setModelId(initialModel.id);
+          setSize(sizeOf(initialModel));
+          setExtraParameters(extraDefaults(initialModel));
         }
       })
       .catch((fetchError) => setError(errorMessage(fetchError)));
@@ -225,6 +246,12 @@ export function CreateWorkspace() {
   }, [activeTaskId, activeTaskStatus]);
 
   function selectModel(nextModel: ModelInfo) {
+    rememberModelId(nextModel.id);
+    if (nextModel.id === modelId) {
+      setError(null);
+      return;
+    }
+
     setModelId(nextModel.id);
     setSize(sizeOf(nextModel));
     setExtraParameters(extraDefaults(nextModel));
@@ -800,41 +827,11 @@ export function CreateWorkspace() {
               </Button>
             </div>
 
-            <section className="mt-5">
-              <p className="text-xs font-medium text-muted-foreground">模型</p>
-              <div className="mt-2 space-y-2">
-                {models.map((model) => (
-                  <button
-                    key={model.id}
-                    type="button"
-                    onClick={() => selectModel(model)}
-                    className={cn(
-                      "flex w-full items-start justify-between rounded-2xl border p-3 text-left transition-colors",
-                      selectedModel?.id === model.id
-                        ? "border-neutral-400 bg-[#f6f4f0]"
-                        : "hover:bg-muted/40",
-                    )}
-                  >
-                    <span>
-                      <span className="block text-sm font-medium">{model.name}</span>
-                      <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                        {model.provider} · {model.id}
-                      </span>
-                    </span>
-                    <span
-                      className={cn(
-                        "rounded-full px-2 py-0.5 text-[10px]",
-                        model.verified
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-amber-50 text-amber-700",
-                      )}
-                    >
-                      {model.verified ? "已验证" : "部分能力未验证"}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </section>
+            <ModelPicker
+              models={models}
+              selectedModelId={selectedModel?.id ?? ""}
+              onSelect={selectModel}
+            />
 
             <section className="mt-5">
               <p className="text-xs font-medium text-muted-foreground">模式</p>
@@ -869,24 +866,7 @@ export function CreateWorkspace() {
               {sizeParameter ? (
                 <div className="mt-2">
                   <p className="mb-2 text-xs">{sizeParameter.label}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {sizeOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setSize(option.value)}
-                        className={cn(
-                          "rounded-xl border px-3 py-2 text-xs",
-                          size === option.value
-                            ? "border-neutral-300 bg-[#efede7] text-neutral-900"
-                            : "bg-background text-muted-foreground",
-                        )}
-                      >
-                        {option.label}
-                        <span className="ml-1 opacity-60">{option.value}</span>
-                      </button>
-                    ))}
-                  </div>
+                  <SizePicker options={sizeOptions} value={size} onChange={setSize} />
                 </div>
               ) : null}
 

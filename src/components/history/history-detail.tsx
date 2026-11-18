@@ -60,13 +60,13 @@ function ComposerMenu({
     <div className="relative" data-composer-menu>
       <button
         type="button"
+        aria-label={`${label}：${value}`}
         onClick={onToggle}
         className={cn(
           "flex items-center gap-1 rounded-full border bg-white px-2.5 py-1 text-[11px] transition-colors hover:bg-muted/40",
           open && "border-neutral-300 bg-[#efede7]",
         )}
       >
-        <span className="text-muted-foreground">{label}</span>
         <span className="font-medium text-neutral-900">{value}</span>
         <ChevronDown
           className={cn("size-3 text-muted-foreground transition-transform", open && "rotate-180")}
@@ -519,7 +519,7 @@ export function HistoryDetail() {
                 options={[
                   {
                     label: "图片编辑",
-                    hint: "当前对话模式",
+                    hint: "当前选择",
                     selected: true,
                   },
                   {
@@ -563,12 +563,12 @@ export function HistoryDetail() {
                   },
                   {
                     label: "2K",
-                    hint: "待接入高分辨率模型",
+                    hint: "该档位暂未开放",
                     disabled: true,
                   },
                   {
                     label: "4K",
-                    hint: "待接入高分辨率模型",
+                    hint: "该档位暂未开放",
                     disabled: true,
                   },
                 ]}

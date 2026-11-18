@@ -146,7 +146,7 @@ export function CreateWorkspace() {
 
   const selectedModel = models.find((model) => model.id === modelId) ?? models[0];
   const maxReferenceImages = selectedModel?.limits?.maxReferenceImages ?? 8;
-  const promptMaxChars = selectedModel?.limits?.promptMaxChars ?? 8000;
+  const promptMaxChars = selectedModel?.limits?.promptMaxChars ?? 32000;
   const sizeParameter = selectedModel?.parameters.find((parameter) => parameter.key === "size");
   const sizeOptions = sizeParameter?.options ?? selectedModel?.sizes ?? [];
   const extraParameterDefinitions =

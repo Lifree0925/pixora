@@ -41,7 +41,7 @@ const serverEnvSchema = z.object({
   MAX_REFERENCE_IMAGES: z.coerce.number().int().positive().default(8),
   MAX_IMAGE_PIXELS: z.coerce.number().int().positive().default(40_000_000),
   MAX_RESULT_MB: z.coerce.number().int().positive().default(50),
-  PROMPT_MAX_CHARS: z.coerce.number().int().positive().default(8000),
+  PROMPT_MAX_CHARS: z.coerce.number().int().positive().default(32000),
 
   TASK_POLL_MAX_SECONDS: z.coerce.number().int().positive().default(900),
   TASK_POLL_MIN_SECONDS: z.coerce.number().int().positive().default(2),

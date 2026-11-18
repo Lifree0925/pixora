@@ -78,6 +78,8 @@ describe("model registry", () => {
       expect(Math.min(width!, height!) / Math.max(width!, height!)).toBeGreaterThanOrEqual(1 / 3);
       expect(width! * height!).toBeGreaterThanOrEqual(655_360);
       expect(width! * height!).toBeLessThanOrEqual(8_294_400);
+      const [ratioWidth, ratioHeight] = option.label.split(":").map(Number);
+      expect(width! * ratioHeight!).toBe(height! * ratioWidth!);
     }
   });
 

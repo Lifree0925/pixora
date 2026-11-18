@@ -18,6 +18,23 @@ export interface SizeOptionGrouping {
 }
 
 const RESOLUTION_PATTERN = /(\d+(?:\.\d+)?K)/i;
+const RATIO_PATTERN = /(\d+)\s*[:：]\s*(\d+)/;
+
+function greatestCommonDivisor(left: number, right: number): number {
+  let a = Math.abs(left);
+  let b = Math.abs(right);
+  while (b !== 0) {
+    [a, b] = [b, a % b];
+  }
+  return a || 1;
+}
+
+function normalizeRatio(width: number, height: number): string {
+  const roundedWidth = Math.round(width);
+  const roundedHeight = Math.round(height);
+  const divisor = greatestCommonDivisor(roundedWidth, roundedHeight);
+  return `${roundedWidth / divisor}:${roundedHeight / divisor}`;
+}
 
 function inferResolution(width: number, height: number): string {
   const longestEdge = Math.max(width, height);
@@ -36,10 +53,10 @@ export function describeSizeOption(option: SizeOptionInput): DescribedSizeOption
   const height = Number(heightText);
   const resolution = option.label.match(RESOLUTION_PATTERN)?.[1]?.toUpperCase()
     ?? inferResolution(width, height);
-  const orientationLabel = option.label
-    .replace(/[（(]?\s*\d+(?:\.\d+)?K\s*[）)]?/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim() || `${width}×${height}`;
+  const declaredRatio = option.label.match(RATIO_PATTERN);
+  const orientationLabel = declaredRatio
+    ? `${declaredRatio[1]}:${declaredRatio[2]}`
+    : normalizeRatio(width, height);
 
   return {
     ...option,

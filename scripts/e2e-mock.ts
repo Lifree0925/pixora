@@ -307,11 +307,18 @@ async function main(): Promise<void> {
         "Content-Type": "application/json",
         "Idempotency-Key": crypto.randomUUID(),
       },
-      body: JSON.stringify({ prompt: "[E2E] re-edit", size: "1024x1024" }),
+      body: JSON.stringify({
+        prompt: "[E2E] multi re-edit",
+        size: "1024x1024",
+        mode: "multi_image_edit",
+        assetIds: [inputB.id],
+      }),
     });
     createdTaskIds.push(reEdit.task.id);
     const reEditTask = await pollTask(reEdit.task.id);
     assert.equal(reEditTask.status, "succeeded");
+    assert.equal(reEditTask.mode, "multi_image_edit");
+    assert.equal(reEditTask.inputs.length, 2);
     assert.equal(reEditTask.parentTaskId, multiTaskId);
     assert.equal(reEditTask.parentAssetId, multiTask.outputs[0].id);
 
@@ -332,8 +339,9 @@ async function main(): Promise<void> {
       (task) => task.id === reEdit.task.id,
     );
     assert.ok(childTurn);
-    assert.equal(childTurn.inputs.length, 1);
+    assert.equal(childTurn.inputs.length, 2);
     assert.equal(childTurn.inputs[0].id, multiTask.outputs[0].id);
+    assert.equal(childTurn.inputs[1].id, inputB.id);
 
     await deleteTask(reEdit.task.id);
     await deleteTask(textTaskId);
@@ -349,7 +357,7 @@ async function main(): Promise<void> {
       );
     }
 
-    console.log("[e2e] 文生图、单图编辑、多图融合、历史、下载、再次编辑、删除均通过");
+    console.log("[e2e] 文生图、单图编辑、多图融合、历史、下载、历史多图融合、删除均通过");
   } finally {
     await new Promise<void>((resolve) => {
       if (server) {

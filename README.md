@@ -11,9 +11,9 @@
 - Supabase Storage：上传、签名 URL、读取、删除
 - 文生图、单图编辑、多图融合
 - 模型注册表、模型选择、当前模型展示和参数校验框架
-- ChatGPT 式创作页：模型/模式/参数收在设置弹层；输入框自动向上扩展；侧边栏可收起；发送后清空输入；结果图点击可缩放查看
+- ChatGPT 式创作页：模型/参数收在设置弹层，模式常驻 composer 左下角；输入框自动向上扩展；侧边栏可收起；发送后清空输入；结果图点击可缩放查看
 - worker 异步提交、轮询、超时继续查询和 submit_unknown 处理
-- 对话式历史：按 conversationId 聚合多轮提示与结果，使用整页外侧滚动条，支持详情、下载、继续编辑、软删除和共享资产保护
+- 对话式历史：按 conversationId 聚合多轮提示与结果，支持查看、下载、图片编辑、多图融合继续创作、软删除和共享资产保护
 - 下载导出：原图/长边 1K/1.5K/2K/4K、PNG/JPEG/WebP、20–100 压缩质量；大于原图时明确提示仅重采样
 - `/api/health`、`/api/models`、`/api/system/status`
 - Docker Compose：数据库、迁移、Web、worker、可选 MinIO
@@ -89,7 +89,7 @@ pnpm storage:check
 
 - 模型定义：`src/modules/models/registry.ts`
 - Provider 工厂：`src/providers/index.ts`
-- 前端 composer 始终显示当前模型胶囊；点击模型/模式/设置按钮打开设置弹层。
+- 前端 composer 始终显示当前模型胶囊和模式菜单；模式在左下角直接切换，模型和参数通过设置按钮打开弹层。
 - GPT Image 2.0 开放 `size`、`quality`、`background`、`output_format`、`output_compression`、`moderation`。
 - GPT Image 2.5 额外开放 `quality=xhigh/max`、`complexity` 和 `background=transparent`；透明背景只能搭配 PNG/WebP。
 - Gemini Nano Banana 2.1 当前只开放 `size`，由 Adapter 映射为原生 `imageConfig`；它不走 `/v1/images/*`，响应兼容 `inlineData` 和 `fileData.fileUri`。
@@ -188,7 +188,7 @@ GPT Image 2.0 的 `YIJIE_EDIT_VERIFIED` 和 `YIJIE_MULTI_IMAGE_EDIT_VERIFIED` �
 pnpm e2e:mock
 ```
 
-该命令需要一个指向 mock 一阶的本地 web/worker；E2E 覆盖上传、文生图、单图编辑、多图融合、历史、下载、再次编辑、删除和共享资产保护。
+该命令需要一个指向 mock 一阶的本地 web/worker；E2E 覆盖上传、文生图、单图编辑、多图融合、历史、下载、历史多图融合、删除和共享资产保护。
 
 ## 可选 S3 / MinIO
 

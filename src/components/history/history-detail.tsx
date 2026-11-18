@@ -6,22 +6,23 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  Check,
-  ChevronDown,
   Loader2,
   MessageSquare,
+  Paperclip,
   RefreshCw,
   RotateCcw,
   Send,
   Trash2,
+  X,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ImageDownloadMenu } from "@/components/ui/image-download-menu";
 import { ImageViewer } from "@/components/ui/image-viewer";
+import { ComposerMenu } from "@/components/studio/composer-menu";
 import { cn } from "@/lib/utils";
 import { fetchJson, ClientApiError } from "@/lib/client/api";
 import { getTaskStatusLabel } from "@/lib/task-status";
-import type { AssetView, ConversationView, TaskView } from "@/types/api";
+import type { AssetView, ConversationView, ModelInfo, TaskView } from "@/types/api";
 
 const MODE_LABELS: Record<string, string> = {
   text_to_image: "文生图",
@@ -30,83 +31,13 @@ const MODE_LABELS: Record<string, string> = {
 };
 
 const ORIENTATIONS = [
-  { label: "正方形", value: "1024x1024" },
-  { label: "竖版", value: "1024x1536" },
-  { label: "横版", value: "1536x1024" },
+  { label: "1:1", value: "1024x1024" },
+  { label: "2:3", value: "1024x1536" },
+  { label: "3:2", value: "1536x1024" },
 ];
 
 type ComposerMenuKey = "mode" | "orientation" | "resolution";
-
-function ComposerMenu({
-  label,
-  value,
-  open,
-  onToggle,
-  options,
-}: {
-  label: string;
-  value: string;
-  open: boolean;
-  onToggle: () => void;
-  options: Array<{
-    label: string;
-    hint?: string;
-    selected?: boolean;
-    disabled?: boolean;
-    onSelect?: () => void;
-  }>;
-}) {
-  return (
-    <div className="relative" data-composer-menu>
-      <button
-        type="button"
-        aria-label={`${label}：${value}`}
-        onClick={onToggle}
-        className={cn(
-          "flex items-center gap-1 rounded-full border bg-white px-2.5 py-1 text-[11px] transition-colors hover:bg-muted/40",
-          open && "border-neutral-300 bg-[#efede7]",
-        )}
-      >
-        <span className="font-medium text-neutral-900">{value}</span>
-        <ChevronDown
-          className={cn("size-3 text-muted-foreground transition-transform", open && "rotate-180")}
-        />
-      </button>
-      {open ? (
-        <div className="absolute bottom-full left-0 z-40 mb-2 w-56 rounded-2xl border bg-white p-1.5 shadow-xl">
-          {options.map((option) => (
-            <button
-              key={option.label}
-              type="button"
-              disabled={option.disabled}
-              onClick={() => {
-                option.onSelect?.();
-                onToggle();
-              }}
-              className={cn(
-                "flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs transition-colors",
-                option.selected ? "bg-[#f5f2ec] text-neutral-900" : "hover:bg-muted/50",
-                option.disabled && "cursor-not-allowed opacity-45",
-              )}
-            >
-              <span className="flex size-3.5 shrink-0 items-center justify-center">
-                {option.selected ? <Check className="size-3.5" /> : null}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block font-medium">{option.label}</span>
-                {option.hint ? (
-                  <span className="mt-0.5 block text-[10px] font-normal text-muted-foreground">
-                    {option.hint}
-                  </span>
-                ) : null}
-              </span>
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
+type HistoryEditMode = "image_edit" | "multi_image_edit";
 
 const ACTIVE_STATUSES = new Set(["pending", "submitting", "processing"]);
 
@@ -127,22 +58,45 @@ function parameterSummary(task: TaskView): string {
   return [task.requestedSize, ...values].join(" · ");
 }
 
+function latestSuccessfulTaskOf(conversation: ConversationView): TaskView | undefined {
+  return [...conversation.turns]
+    .reverse()
+    .find((task) => task.status === "succeeded" && task.outputs.length > 0);
+}
+
 export function HistoryDetail() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const id = params.id;
   const [conversation, setConversation] = useState<ConversationView | null>(null);
+  const [models, setModels] = useState<ModelInfo[]>([]);
   const [prompt, setPrompt] = useState("");
   const [size, setSize] = useState("1024x1024");
+  const [mode, setMode] = useState<HistoryEditMode>("image_edit");
+  const [references, setReferences] = useState<AssetView[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [composerMenu, setComposerMenu] = useState<ComposerMenuKey | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lightboxAsset, setLightboxAsset] = useState<AssetView | null>(null);
   const idempotencyRef = useRef(crypto.randomUUID());
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const currentOrientation =
     ORIENTATIONS.find((orientation) => orientation.value === size) ?? ORIENTATIONS[0]!;
+  const historyModel = models.find((model) => model.id === conversation?.model);
+  const canEdit = Boolean(historyModel?.capabilities.imageEdit);
+  const canMultiEdit = Boolean(historyModel?.capabilities.multiImageEdit);
+  const maxAdditionalReferences = Math.max(
+    0,
+    (historyModel?.limits.maxReferenceImages ?? 8) - 1,
+  );
+  const latestSuccessfulTask = conversation ? latestSuccessfulTaskOf(conversation) : undefined;
+  const latestOutput = latestSuccessfulTask?.outputs[0] ?? null;
+  const canContinue = Boolean(conversation?.latestSuccessfulTaskId && latestOutput);
+  const hasEditCapability = canEdit || canMultiEdit;
+  const modeReady = mode === "image_edit" ? canEdit : canMultiEdit && references.length > 0;
 
   useEffect(() => {
     if (!composerMenu) {
@@ -166,12 +120,28 @@ export function HistoryDetail() {
     };
   }, [composerMenu]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void fetchJson<{ models: ModelInfo[] }>("/api/models")
+      .then((data) => {
+        if (!cancelled) {
+          setModels(data.models);
+        }
+      })
+      .catch((loadError) => {
+        if (!cancelled) {
+          setError(messageOf(loadError));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function refreshConversation(): Promise<void> {
     const data = await fetchConversation(id);
     setConversation(data.conversation);
-    const latestSuccessful = [...data.conversation.turns]
-      .reverse()
-      .find((task) => task.status === "succeeded" && task.outputs.length > 0);
+    const latestSuccessful = latestSuccessfulTaskOf(data.conversation);
     setSize(latestSuccessful?.requestedSize ?? "1024x1024");
   }
 
@@ -183,9 +153,7 @@ export function HistoryDetail() {
           return;
         }
         setConversation(data.conversation);
-        const latestSuccessful = [...data.conversation.turns]
-          .reverse()
-          .find((task) => task.status === "succeeded" && task.outputs.length > 0);
+        const latestSuccessful = latestSuccessfulTaskOf(data.conversation);
         setSize(latestSuccessful?.requestedSize ?? "1024x1024");
       })
       .catch((loadError) => {
@@ -222,6 +190,76 @@ export function HistoryDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasActiveTask, id]);
 
+  function chooseEditMode(nextMode: HistoryEditMode) {
+    if (nextMode === "image_edit" && !canEdit) {
+      setError("当前模型未开放图片编辑能力");
+      return;
+    }
+    if (nextMode === "multi_image_edit" && !canMultiEdit) {
+      setError("当前模型未开放多图融合能力");
+      return;
+    }
+
+    setMode(nextMode);
+    setError(null);
+    if (nextMode === "image_edit") {
+      setReferences([]);
+    }
+  }
+
+  async function uploadReferences(files: FileList | null) {
+    if (!files || files.length === 0) {
+      return;
+    }
+    if (!canMultiEdit) {
+      setError("当前模型未开放多图融合能力");
+      return;
+    }
+    if (!canContinue) {
+      setError("当前对话还没有可用于多图融合的结果");
+      return;
+    }
+
+    const remaining = maxAdditionalReferences - references.length;
+    if (remaining <= 0) {
+      setError("参考图数量已达上限");
+      return;
+    }
+
+    const selected = Array.from(files).slice(0, remaining);
+    setUploading(true);
+    setError(null);
+    try {
+      const nextReferences = [...references];
+      for (const file of selected) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const response = await fetch("/api/uploads", { method: "POST", body: formData });
+        const data = (await response.json().catch(() => null)) as {
+          asset?: AssetView;
+          error?: { message?: string };
+        } | null;
+        if (!response.ok || !data?.asset) {
+          throw new Error(data?.error?.message ?? `上传失败 HTTP ${response.status}`);
+        }
+        nextReferences.push(data.asset);
+        setReferences([...nextReferences]);
+        setMode("multi_image_edit");
+      }
+    } catch (uploadError) {
+      setError(messageOf(uploadError));
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }
+
+  function removeReference(id: string) {
+    setReferences((current) => current.filter((asset) => asset.id !== id));
+  }
+
   async function submitEdit() {
     if (!prompt.trim()) {
       setError("请先填写编辑提示词");
@@ -230,6 +268,18 @@ export function HistoryDetail() {
     const latestTaskId = conversation?.latestSuccessfulTaskId;
     if (!latestTaskId) {
       setError("当前对话还没有可用于继续编辑的结果");
+      return;
+    }
+    if (mode === "image_edit" && !canEdit) {
+      setError("当前模型未开放图片编辑能力");
+      return;
+    }
+    if (mode === "multi_image_edit" && !canMultiEdit) {
+      setError("当前模型未开放多图融合能力");
+      return;
+    }
+    if (mode === "multi_image_edit" && references.length === 0) {
+      setError("多图融合除当前结果外至少还需要一张参考图");
       return;
     }
 
@@ -241,7 +291,12 @@ export function HistoryDetail() {
         {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyRef.current },
-          body: JSON.stringify({ prompt, size }),
+          body: JSON.stringify({
+            prompt,
+            size,
+            mode,
+            assetIds: mode === "multi_image_edit" ? references.map((asset) => asset.id) : [],
+          }),
         },
       );
       idempotencyRef.current = crypto.randomUUID();
@@ -318,8 +373,6 @@ export function HistoryDetail() {
       </div>
     );
   }
-
-  const canContinue = Boolean(conversation.latestSuccessfulTaskId);
 
   return (
     <div className="min-h-screen w-full pb-3">
@@ -493,10 +546,46 @@ export function HistoryDetail() {
 
       <footer className="sticky bottom-3 z-20 mx-auto w-full max-w-3xl px-4 md:px-6">
         <div className="rounded-3xl border bg-white p-3 shadow-[0_10px_30px_rgba(0,0,0,0.08)]">
+          {references.length > 0 ? (
+            <div className="mb-3">
+              <p className="mb-2 text-[11px] text-muted-foreground">
+                当前结果自动作为第 1 张参考图，新添加的参考图从第 2 张开始。
+              </p>
+              <div className="flex gap-2 overflow-x-auto">
+                {references.map((asset, index) => (
+                  <div
+                    key={asset.id}
+                    className="relative size-16 shrink-0 overflow-hidden rounded-2xl border bg-muted"
+                  >
+                    <Image
+                      src={asset.previewUrl}
+                      alt={`新增参考图 ${index + 1}`}
+                      fill
+                      unoptimized
+                      sizes="64px"
+                      className="object-cover"
+                    />
+                    <span className="absolute left-1 top-1 rounded-full bg-black/60 px-1.5 text-[9px] text-white">
+                      {index + 2}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`移除新增参考图 ${index + 1}`}
+                      className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-black/70 text-white"
+                      onClick={() => removeReference(asset.id)}
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <textarea
             rows={2}
             value={prompt}
-            disabled={!canContinue || submitting}
+            disabled={!canContinue || submitting || !hasEditCapability}
             onChange={(event) => setPrompt(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
@@ -505,7 +594,11 @@ export function HistoryDetail() {
               }
             }}
             placeholder={
-              canContinue ? "继续这个对话，描述要修改的内容…" : "当前对话还没有可编辑的结果"
+              canContinue
+                ? hasEditCapability
+                  ? "继续这个对话，描述要修改的内容…"
+                  : "当前模型未开放继续编辑能力"
+                : "当前对话还没有可编辑的结果"
             }
             className="max-h-36 min-h-14 w-full resize-none overflow-y-auto border-0 bg-transparent px-1 py-2 text-sm leading-6 outline-none placeholder:text-muted-foreground disabled:opacity-50"
           />
@@ -513,24 +606,24 @@ export function HistoryDetail() {
             <div className="flex flex-wrap items-center gap-1.5">
               <ComposerMenu
                 label="模式"
-                value="图片编辑"
+                value={mode === "image_edit" ? "图片编辑" : "多图融合"}
                 open={composerMenu === "mode"}
                 onToggle={() => setComposerMenu((current) => (current === "mode" ? null : "mode"))}
+                disabled={!historyModel || uploading || submitting}
                 options={[
                   {
                     label: "图片编辑",
-                    hint: "当前选择",
-                    selected: true,
+                    hint: canEdit ? "当前结果作为参考图" : "当前模型未开放",
+                    selected: mode === "image_edit",
+                    disabled: !canEdit,
+                    onSelect: () => chooseEditMode("image_edit"),
                   },
                   {
                     label: "多图融合",
-                    hint: "待支持在历史对话中追加参考图",
-                    disabled: true,
-                  },
-                  {
-                    label: "文生图",
-                    hint: "请新建对话开始",
-                    disabled: true,
+                    hint: canMultiEdit ? "当前结果 + 已添加参考图" : "当前模型未开放",
+                    selected: mode === "multi_image_edit",
+                    disabled: !canMultiEdit,
+                    onSelect: () => chooseEditMode("multi_image_edit"),
                   },
                 ]}
               />
@@ -550,14 +643,14 @@ export function HistoryDetail() {
               />
               <ComposerMenu
                 label="分辨率"
-                value="标准 1K"
+                value="1K"
                 open={composerMenu === "resolution"}
                 onToggle={() =>
                   setComposerMenu((current) => (current === "resolution" ? null : "resolution"))
                 }
                 options={[
                   {
-                    label: "标准 1K",
+                    label: "1K",
                     hint: "当前模型可用",
                     selected: true,
                   },
@@ -573,12 +666,45 @@ export function HistoryDetail() {
                   },
                 ]}
               />
+              {mode === "multi_image_edit" ? (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    multiple
+                    className="hidden"
+                    onChange={(event) => void uploadReferences(event.target.files)}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    title={
+                      references.length >= maxAdditionalReferences
+                        ? "参考图数量已达上限"
+                        : "添加参考图"
+                    }
+                    aria-label="添加参考图"
+                    disabled={
+                      !canContinue ||
+                      submitting ||
+                      uploading ||
+                      !canMultiEdit ||
+                      maxAdditionalReferences <= 0
+                    }
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {uploading ? <Loader2 className="animate-spin" /> : <Paperclip />}
+                  </Button>
+                </>
+              ) : null}
             </div>
             <Button
               type="button"
               size="icon"
               className="rounded-full"
-              disabled={!canContinue || submitting || !prompt.trim()}
+              disabled={!canContinue || submitting || uploading || !prompt.trim() || !modeReady}
               title="继续编辑"
               aria-label="继续编辑"
               onClick={() => void submitEdit()}
@@ -586,6 +712,9 @@ export function HistoryDetail() {
               {submitting ? <Loader2 className="animate-spin" /> : <Send />}
             </Button>
           </div>
+          {canContinue && !hasEditCapability ? (
+            <p className="mt-2 text-[11px] text-destructive">当前模型未开放继续编辑能力。</p>
+          ) : null}
         </div>
       </footer>
 

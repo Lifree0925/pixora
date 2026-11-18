@@ -608,14 +608,31 @@ export async function createEditFromHistory(
       .map((parameter) => [parameter.key, snapshotParameters[parameter.key]!]),
   );
 
+  const additionalAssetIds = input.assetIds;
+  if (new Set(additionalAssetIds).size !== additionalAssetIds.length) {
+    throw new GenerationError("VALIDATION_ERROR", "参考图不能重复选择");
+  }
+  if (additionalAssetIds.includes(output.id)) {
+    throw new GenerationError("VALIDATION_ERROR", "当前结果已自动作为第一张参考图");
+  }
+  if (input.mode === "image_edit" && additionalAssetIds.length > 0) {
+    throw new GenerationError("VALIDATION_ERROR", "图片编辑不使用额外参考图，请切换多图融合");
+  }
+  if (input.mode === "multi_image_edit" && additionalAssetIds.length === 0) {
+    throw new GenerationError("VALIDATION_ERROR", "多图融合除当前结果外至少还需要一张参考图");
+  }
+
+  const assetIds =
+    input.mode === "multi_image_edit" ? [output.id, ...additionalAssetIds] : [output.id];
+
   return createGenerationTask(
     {
-      mode: "image_edit",
+      mode: input.mode,
       prompt: input.prompt,
       size: input.size,
       modelId: task.model,
       parameters: inheritedParameters,
-      assetIds: [output.id],
+      assetIds,
       parentTaskId: task.id,
       parentAssetId: output.id,
     },

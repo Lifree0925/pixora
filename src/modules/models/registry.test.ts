@@ -37,6 +37,32 @@ describe("model registry", () => {
     expect(model.capabilities.multiImageEdit).toBe(true);
   });
 
+  it("exposes size options as numeric aspect ratios", () => {
+    expect(getModelDefinition("gr-gpt-image-2").sizes.map((size) => size.label)).toEqual([
+      "1:1",
+      "3:2",
+      "2:3",
+    ]);
+    expect(getModelDefinition("gpt-image-2.5-flare").sizes.map((size) => size.label)).toEqual([
+      "1:1",
+      "3:2",
+      "2:3",
+      "1:1",
+      "3:2",
+      "2:3",
+      "1:1",
+      "3:2",
+      "2:3",
+    ]);
+    expect(getModelDefinition("gemini-nano-banana-2.1").sizes.map((size) => size.label)).toEqual([
+      "1:1",
+      "3:2",
+      "2:3",
+      "16:9",
+      "9:16",
+    ]);
+  });
+
   it("normalizes GPT Image 2 official parameters and rejects unknown fields", () => {
     const model = getModelDefinition("gr-gpt-image-2");
     expect(normalizeModelParameters({ model, size: "1024x1024", parameters: {} })).toEqual({
@@ -94,7 +120,7 @@ describe("model registry", () => {
     ).toMatchObject({
       size: "2880x2880",
       quality: "xhigh",
-      complexity: "high",
+      complexity: "low",
       background: "transparent",
     });
   });
@@ -156,19 +182,22 @@ describe("model registry", () => {
 
   it("only sends changed non-size parameters to the provider", () => {
     const model = getModelDefinition("gpt-image-2.5-flare");
-    expect(
-      getProviderParameterOverrides(model, {
-        size: "1024x1024",
-        quality: "xhigh",
-        complexity: "high",
-        background: "transparent",
-        output_format: "png",
-        output_compression: 100,
-        moderation: "auto",
-      }),
-    ).toEqual({
+    const parameters = {
+      size: "1024x1024",
+      quality: "xhigh",
+      complexity: "low",
+      background: "transparent",
+      output_format: "png",
+      output_compression: 100,
+      moderation: "auto",
+    };
+
+    expect(getProviderParameterOverrides(model, parameters)).toEqual({
       quality: "xhigh",
       background: "transparent",
     });
+    expect(
+      getProviderParameterOverrides(model, { ...parameters, complexity: "high" }),
+    ).toMatchObject({ complexity: "high" });
   });
 });

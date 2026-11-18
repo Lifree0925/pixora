@@ -63,29 +63,29 @@ export class ModelError extends Error {
 export const DEFAULT_MODEL_ID = "gr-gpt-image-2";
 
 const GPT_IMAGE_2_SIZES: ModelParameterOption[] = [
-  { label: "正方形（1K）", value: "1024x1024" },
-  { label: "横版（3:2）", value: "1536x1024" },
-  { label: "竖版（2:3）", value: "1024x1536" },
+  { label: "1:1", value: "1024x1024" },
+  { label: "3:2", value: "1536x1024" },
+  { label: "2:3", value: "1024x1536" },
 ];
 
 const GPT_IMAGE_2_5_SIZES: ModelParameterOption[] = [
-  { label: "1K 正方形", value: "1024x1024" },
-  { label: "1K 横版", value: "1536x1024" },
-  { label: "1K 竖版", value: "1024x1536" },
-  { label: "2K 正方形", value: "2048x2048" },
-  { label: "2K 横版", value: "2016x1344" },
-  { label: "2K 竖版", value: "1344x2016" },
-  { label: "4K 正方形", value: "2880x2880" },
-  { label: "4K 横版", value: "3504x2336" },
-  { label: "4K 竖版", value: "2336x3504" },
+  { label: "1:1", value: "1024x1024" },
+  { label: "3:2", value: "1536x1024" },
+  { label: "2:3", value: "1024x1536" },
+  { label: "1:1", value: "2048x2048" },
+  { label: "3:2", value: "2016x1344" },
+  { label: "2:3", value: "1344x2016" },
+  { label: "1:1", value: "2880x2880" },
+  { label: "3:2", value: "3504x2336" },
+  { label: "2:3", value: "2336x3504" },
 ];
 
 const GEMINI_NANO_BANANA_SIZES: ModelParameterOption[] = [
-  { label: "1K 正方形", value: "1024x1024" },
-  { label: "1K 横版（3:2）", value: "1248x832" },
-  { label: "1K 竖版（2:3）", value: "832x1248" },
-  { label: "1K 宽屏（16:9）", value: "1344x768" },
-  { label: "1K 竖屏（9:16）", value: "768x1344" },
+  { label: "1:1", value: "1024x1024" },
+  { label: "3:2", value: "1248x832" },
+  { label: "2:3", value: "832x1248" },
+  { label: "16:9", value: "1344x768" },
+  { label: "9:16", value: "768x1344" },
 ];
 
 function createSizeParameter(
@@ -207,13 +207,13 @@ const GPT_IMAGE_2_5_PARAMETERS: ModelParameterDefinition[] = [
     label: "规划复杂度",
     type: "enum",
     group: "画面",
-    defaultValue: "high",
+    defaultValue: "low",
     options: [
       { label: "低", value: "low" },
       { label: "中", value: "medium" },
       { label: "高", value: "high" },
     ],
-    help: "控制生成前的规划深度，不直接改变渲染分辨率；一阶文档标注默认 high。",
+    help: "控制生成前的规划深度，不直接改变渲染分辨率；本项目默认使用 low。",
   },
   {
     key: "background",

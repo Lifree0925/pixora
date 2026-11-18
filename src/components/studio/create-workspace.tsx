@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ImageDownloadMenu } from "@/components/ui/image-download-menu";
 import { ImageViewer } from "@/components/ui/image-viewer";
+import { ComposerMenu } from "@/components/studio/composer-menu";
 import { ModelPicker } from "@/components/studio/model-picker";
 import { SizePicker } from "@/components/studio/size-picker";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,12 @@ const MODE_LABELS: Record<GenerationMode, string> = {
   text_to_image: "文生图",
   image_edit: "图片编辑",
   multi_image_edit: "多图融合",
+};
+
+const MODE_HINTS: Record<GenerationMode, string> = {
+  text_to_image: "仅使用提示词",
+  image_edit: "使用一张参考图",
+  multi_image_edit: "使用多张参考图",
 };
 
 const ACTIVE_STATUSES = new Set(["pending", "submitting", "processing"]);
@@ -126,6 +133,7 @@ export function CreateWorkspace() {
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -144,6 +152,18 @@ export function CreateWorkspace() {
   const extraParameterDefinitions =
     selectedModel?.parameters.filter((parameter) => parameter.key !== "size") ?? [];
   const extraParameterGroups = groupParameterDefinitions(extraParameterDefinitions);
+  const modeMenuOptions = (Object.keys(MODE_LABELS) as GenerationMode[]).map((item) => {
+    const disabled =
+      (item === "image_edit" && !modelCanEdit(selectedModel)) ||
+      (item === "multi_image_edit" && !modelCanMultiEdit(selectedModel));
+    return {
+      label: MODE_LABELS[item],
+      hint: disabled ? "当前模型未开放" : MODE_HINTS[item],
+      selected: mode === item,
+      disabled,
+      onSelect: () => chooseMode(item),
+    };
+  });
   const busy = uploading || submitting || (task ? ACTIVE_STATUSES.has(task.status) : false);
   const output = task?.outputs[0] ?? null;
 
@@ -170,6 +190,7 @@ export function CreateWorkspace() {
     void fetchJson<{ task: TaskView }>(`/api/images/tasks/${initialTaskId}`)
       .then((data) => {
         setTask(data.task);
+        setMode(data.task.mode);
         const taskModel = models.find((model) => model.id === data.task.model);
         if (taskModel) {
           setModelId(taskModel.id);
@@ -197,6 +218,28 @@ export function CreateWorkspace() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [settingsOpen]);
+
+  useEffect(() => {
+    if (!modeMenuOpen) {
+      return;
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      if (!(event.target as Element).closest("[data-composer-menu]")) {
+        setModeMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setModeMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [modeMenuOpen]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -730,25 +773,37 @@ export function CreateWorkspace() {
 
             <div className="mt-1 flex items-center justify-between">
               <div className="flex items-center gap-1">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  multiple
-                  className="hidden"
-                  onChange={(event) => void uploadFiles(event.target.files)}
+                <ComposerMenu
+                  label="模式"
+                  value={MODE_LABELS[mode]}
+                  open={modeMenuOpen}
+                  onToggle={() => setModeMenuOpen((current) => !current)}
+                  disabled={!selectedModel || uploading}
+                  options={modeMenuOptions}
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  title="添加参考图"
-                  aria-label="添加参考图"
-                  disabled={uploading || busy || !modelCanEdit(selectedModel)}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  {uploading ? <Loader2 className="animate-spin" /> : <Paperclip />}
-                </Button>
+                {mode !== "text_to_image" ? (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      multiple
+                      className="hidden"
+                      onChange={(event) => void uploadFiles(event.target.files)}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      title="添加参考图"
+                      aria-label="添加参考图"
+                      disabled={uploading || busy || !modelCanEdit(selectedModel)}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {uploading ? <Loader2 className="animate-spin" /> : <Paperclip />}
+                    </Button>
+                  </>
+                ) : null}
                 {prompt.length > promptMaxChars * 0.8 ? (
                   <span className="text-[11px] text-muted-foreground">
                     {prompt.length}/{promptMaxChars}
@@ -832,34 +887,6 @@ export function CreateWorkspace() {
               selectedModelId={selectedModel?.id ?? ""}
               onSelect={selectModel}
             />
-
-            <section className="mt-5">
-              <p className="text-xs font-medium text-muted-foreground">模式</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {(Object.keys(MODE_LABELS) as GenerationMode[]).map((item) => {
-                  const disabled =
-                    (item === "image_edit" && !modelCanEdit(selectedModel)) ||
-                    (item === "multi_image_edit" && !modelCanMultiEdit(selectedModel));
-                  return (
-                    <button
-                      key={item}
-                      type="button"
-                      disabled={Boolean(disabled)}
-                      onClick={() => chooseMode(item)}
-                      className={cn(
-                        "rounded-xl border px-3 py-2 text-xs",
-                        mode === item
-                          ? "border-neutral-300 bg-[#efede7] text-neutral-900"
-                          : "bg-background text-muted-foreground",
-                        disabled && "cursor-not-allowed opacity-45",
-                      )}
-                    >
-                      {MODE_LABELS[item]}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
 
             <section className="mt-5">
               <p className="text-xs font-medium text-muted-foreground">参数</p>

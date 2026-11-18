@@ -23,9 +23,13 @@ export const createTaskSchema = z.object({
 
 export type CreateTaskRequest = z.infer<typeof createTaskSchema>;
 
+export const historyEditModeSchema = z.enum(["image_edit", "multi_image_edit"]);
+
 export const historyEditSchema = z.object({
   prompt: z.string().trim().min(1, "提示词不能为空"),
   size: imageSizeSchema,
+  mode: historyEditModeSchema.default("image_edit"),
+  assetIds: z.array(z.string().min(1)).default([]),
 });
 
 export type HistoryEditRequest = z.infer<typeof historyEditSchema>;

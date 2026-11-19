@@ -12,12 +12,14 @@ import { fileTypeFromBuffer } from "file-type";
 
 export type YijieApiStyle = "async-images" | "gemini-generate-content";
 
-const GEMINI_ASPECT_RATIO_BY_SIZE: Record<string, string> = {
-  "1024x1024": "1:1",
-  "1248x832": "3:2",
-  "832x1248": "2:3",
-  "1344x768": "16:9",
-  "768x1344": "9:16",
+const GEMINI_IMAGE_CONFIG_BY_SIZE: Record<
+  string,
+  { aspectRatio: string; imageSize: string }
+> = {
+  "1024x1024": { aspectRatio: "1:1", imageSize: "1K" },
+  "1376x768": { aspectRatio: "16:9", imageSize: "1K" },
+  "768x1376": { aspectRatio: "9:16", imageSize: "1K" },
+  "2048x2048": { aspectRatio: "1:1", imageSize: "2K" },
 };
 
 const JSON_HEADERS = {
@@ -163,9 +165,10 @@ export function buildGeminiNativeBody(input: {
   prompt: string;
   size: string;
   images?: GeminiInlineImageInput[];
+  parameters?: ProviderParameters;
 }) {
-  const aspectRatio = GEMINI_ASPECT_RATIO_BY_SIZE[input.size];
-  if (!aspectRatio) {
+  const imageConfig = GEMINI_IMAGE_CONFIG_BY_SIZE[input.size];
+  if (!imageConfig) {
     throw new ProviderError({
       code: "PROVIDER_REJECTED",
       message: `Gemini 原生图片不支持尺寸 ${input.size}`,
@@ -173,6 +176,8 @@ export function buildGeminiNativeBody(input: {
       ambiguous: false,
     });
   }
+
+  const thinkingLevel = input.parameters?.thinking_level;
 
   return {
     contents: [
@@ -190,11 +195,11 @@ export function buildGeminiNativeBody(input: {
       },
     ],
     generationConfig: {
-      responseModalities: ["TEXT", "IMAGE"],
-      imageConfig: {
-        aspectRatio,
-        imageSize: "1K",
-      },
+      responseModalities: ["IMAGE"],
+      imageConfig,
+      ...(typeof thinkingLevel === "string"
+        ? { thinkingConfig: { thinkingLevel } }
+        : {}),
     },
   };
 }
@@ -533,6 +538,7 @@ export class YijieImageProvider implements ImageProvider {
     prompt: string;
     size: string;
     imageUrls?: string[];
+    parameters?: ProviderParameters;
   }): Promise<ProviderTaskCreation> {
     const images = await loadGeminiInlineImages(input.imageUrls ?? [], {
       maxBytes: this.nativeMaxBytes,
@@ -548,6 +554,7 @@ export class YijieImageProvider implements ImageProvider {
               prompt: input.prompt,
               size: input.size,
               images,
+              parameters: input.parameters,
             }),
           ),
         },

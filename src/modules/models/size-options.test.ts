@@ -54,7 +54,7 @@ describe("size option presentation", () => {
   });
 
   it("prefers a declared ratio over mathematically reduced dimensions", () => {
-    expect(describeSizeOption({ label: "宽屏（16:9）", value: "1344x768" })).toMatchObject({
+    expect(describeSizeOption({ label: "宽屏（16:9）", value: "1376x768" })).toMatchObject({
       resolution: "1K",
       orientationLabel: "16:9",
     });

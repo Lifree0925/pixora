@@ -89,10 +89,9 @@ const GPT_IMAGE_2_5_SIZES: ModelParameterOption[] = [
 
 const GEMINI_NANO_BANANA_SIZES: ModelParameterOption[] = [
   { label: "1:1", value: "1024x1024" },
-  { label: "3:2", value: "1248x832" },
-  { label: "2:3", value: "832x1248" },
-  { label: "16:9", value: "1344x768" },
-  { label: "9:16", value: "768x1344" },
+  { label: "16:9", value: "1376x768" },
+  { label: "9:16", value: "768x1376" },
+  { label: "1:1", value: "2048x2048" },
 ];
 
 function createSizeParameter(
@@ -234,8 +233,20 @@ const GEMINI_NANO_BANANA_PARAMETERS: ModelParameterDefinition[] = [
   createSizeParameter(
     GEMINI_NANO_BANANA_SIZES,
     "1024x1024",
-    "Gemini 官方用宽高比和分辨率描述输出；当前通过一阶 size 传递 1K 常用画幅，映射是否生效需真实接口验证。",
+    "Gemini 原生通过 aspectRatio 与 imageSize 控制输出；当前开放 1:1/16:9/9:16 的 1K，以及 1:1 的 2K。",
   ),
+  {
+    key: "thinking_level",
+    label: "思考等级",
+    type: "enum",
+    group: "高级",
+    options: [
+      { label: "MINIMAL", value: "MINIMAL" },
+      { label: "MEDIUM", value: "MEDIUM" },
+      { label: "HIGH", value: "HIGH" },
+    ],
+    help: "选择后发送 generationConfig.thinkingConfig.thinkingLevel；不选择时使用上游默认值。",
+  },
 ];
 
 export const MODEL_REGISTRY: ModelDefinition[] = [

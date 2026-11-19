@@ -17,7 +17,7 @@
 - 下载导出：原图/长边 1K/1.5K/2K/4K、PNG/JPEG/WebP、20–100 压缩质量；大于原图时明确提示仅重采样
 - `/api/health`、`/api/models`、`/api/system/status`
 - Docker Compose：数据库、迁移、Web、worker、可选 MinIO
-- GPT Image 2.0 的 Phase 0.5 真实契约探测已完成；GPT Image 2.5 与 Gemini Nano Banana 2.1 仍待真实付费验证
+- GPT Image 2.0、GPT Image 2.5 与 Gemini Nano Banana 2.1 的核心契约和编辑链路已验证
 - mock 端到端测试覆盖完整创作闭环
 
 ## 版本
@@ -85,14 +85,14 @@ pnpm storage:check
 | GPT Image 2.0 | `gr-gpt-image-2` | 已真实验证 |
 | GPT Image 2.5 Flare | `gpt-image-2.5-flare` → `gpt-image-2.5-flare-优化版` | 文生图、单图编辑、多图融合已验证 |
 | GPT Image 2.5 Sunburst | `gpt-image-2.5-sunburst` → `gpt-image-2.5-sunburst-优化版` | 文生图、单图编辑、多图融合已验证 |
-| Gemini Nano Banana 2.1 | `gemini-nano-banana-2.1`（原生 `generateContent`） | 文生图、单图编辑、多图融合已验证 |
+| Gemini Nano Banana 2.1 | `gemini-nano-banana-2.1`（原生 `generateContent`） | 文生图、单图编辑、多图融合已验证；支持 1K/2K 指定画幅 |
 
 - 模型定义：`src/modules/models/registry.ts`
 - Provider 工厂：`src/providers/index.ts`
 - 前端 composer 始终显示当前模型胶囊和模式菜单；模式在左下角直接切换，模型和参数通过设置按钮打开弹层。
 - GPT Image 2.0 开放 `size` 和 `background`，透明背景已验证；其余扩展参数未开放。
 - GPT Image 2.5 开放 `quality`（含 `xhigh/max`）、`complexity` 和 `background=transparent`；透明背景只能搭配 PNG/WebP。
-- Gemini Nano Banana 2.1 当前只开放 `size`，由 Adapter 映射为原生 `imageConfig`；它不走 `/v1/images/*`，响应兼容 `inlineData` 和 `fileData.fileUri`。
+- Gemini Nano Banana 2.1 开放 `size`（1:1/16:9/9:16 的 1K，1:1 的 2K）和可选 `thinking_level`（MINIMAL/MEDIUM/HIGH），由 Adapter 映射为原生 `imageConfig`/`thinkingConfig`；`responseModalities` 使用 `["IMAGE"]`，不走 `/v1/images/*`，响应兼容 `inlineData` 和 `fileData.fileUri`。
 - GPT 2.5 与 Gemini 的单图、多图编辑均已通过真实历史图验证，对应开关为 `true`；Mask/Markup 尚未实现。
 - 默认值只保存在任务快照中，实际改动过的参数才会透传上游。
 - 当前渠道对部分官方扩展字段可能只透传不生效；界面会明确说明，最终以实际结果和渠道能力为准。

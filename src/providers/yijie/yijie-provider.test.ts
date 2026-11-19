@@ -124,10 +124,10 @@ describe("yijie provider mapping", () => {
   });
 
   it("maps Gemini sizes and extracts inline images", () => {
-    const body = buildGeminiNativeBody({ prompt: "hello", size: "1248x832" });
-    expect(body.generationConfig.responseModalities).toEqual(["TEXT", "IMAGE"]);
+    const body = buildGeminiNativeBody({ prompt: "hello", size: "1376x768" });
+    expect(body.generationConfig.responseModalities).toEqual(["IMAGE"]);
     expect(body.generationConfig.imageConfig).toEqual({
-      aspectRatio: "3:2",
+      aspectRatio: "16:9",
       imageSize: "1K",
     });
 
@@ -157,7 +157,7 @@ describe("yijie provider mapping", () => {
     });
     const body = buildGeminiNativeBody({
       prompt: "把输入图改成二次元美少女风格",
-      size: "1344x768",
+      size: "1376x768",
       images,
     });
 

@@ -60,12 +60,11 @@ describe("model registry", () => {
       "16:9",
       "9:16",
     ]);
-    expect(getModelDefinition("gemini-nano-banana-2.1").sizes.map((size) => size.label)).toEqual([
-      "1:1",
-      "3:2",
-      "2:3",
-      "16:9",
-      "9:16",
+    expect(getModelDefinition("gemini-nano-banana-2.1").sizes.map((size) => size.value)).toEqual([
+      "1024x1024",
+      "1376x768",
+      "768x1376",
+      "2048x2048",
     ]);
   });
 
@@ -194,10 +193,10 @@ describe("model registry", () => {
     expect(
       normalizeModelParameters({
         model,
-        size: "1248x832",
+        size: "1376x768",
         parameters: {},
       }),
-    ).toEqual({ size: "1248x832" });
+    ).toEqual({ size: "1376x768" });
 
     expect(() =>
       normalizeModelParameters({

@@ -134,13 +134,13 @@ GPT Image 2.0 已实测请求尺寸为 `1024x1024`、`1024x1536`、`1536x1024`�
 
 GPT Image 2.5 当前登记 1K/2K/4K 预设，覆盖 1:1、3:2、2:3、16:9、9:16；官方约束为宽高都是 16 的倍数、宽高比 1:3–3:1、最长边不超过 3840，超过 `2560x1440` 为实验档。16:9/9:16 必须使用真实比例尺寸，不能把 `1536x1024` 标成 16:9。2K/4K 与 `quality=xhigh/max` 可能进入更高计费档，Phase 0.5 必须逐项实测。
 
-Gemini Nano Banana 2.1 当前只登记 1K 常用画幅，已验证通过原生 `generationConfig.imageConfig` 映射为 `1:1`/`3:2`/`2:3`/`16:9`/`9:16` 与 `imageSize=1K`。不要宣传 2K/4K，也不要改用图片异步接口。
+Gemini Nano Banana 2.1 当前登记 `1:1/1K`、`16:9/1K`、`9:16/1K` 和 `1:1/2K`，通过原生 `generationConfig.imageConfig` 映射；`16:9/1K` 实测为 `1376x768`，`9:16/1K` 实测为 `768x1376`，`1:1/2K` 为 `2048x2048`。`responseModalities` 默认使用 `["IMAGE"]`；`thinking_level` 支持 `MINIMAL`/`MEDIUM`/`HIGH`，未选择时不发送。不要宣传 4K 或未登记画幅，也不要改用图片异步接口。
 
 模型参数以官方 Images 基础接口和模型 registry 为准，按模型分别登记：
 
 - GPT Image 2.0：`size`、`background`（`auto`/`opaque`/`transparent`）；`gr-gpt-image-2` 不展示或透传 `quality`、`output_format`、`output_compression`、`moderation`。透明背景按渠道 PNG 输出处理。
 - GPT Image 2.5：`quality`（`auto`/`low`/`medium`/`high`/`xhigh`/`max`）、`complexity`（默认 `high`）、`background`（含 `transparent`，只能搭配 PNG/WebP）、`output_format`、整数 `output_compression` 和 `moderation`。
-- Gemini Nano Banana 2.1：当前只开放 `size`，由 Adapter 映射为 `imageConfig`，不发送 GPT 专属参数。
+- Gemini Nano Banana 2.1：开放 `size` 和可选 `thinking_level`，由 Adapter 映射为 `imageConfig` 和 `thinkingConfig`，不发送 GPT 专属参数。
 
 默认值只写入任务快照，用户改动过的非默认参数才透传上游；因此 registry 默认值必须与上游默认值一致，否则用户无法通过“选择默认值”显式下发该值。渠道可能忽略部分扩展字段，以实际结果为准。
 
@@ -149,7 +149,7 @@ Gemini Nano Banana 2.1 当前只登记 1K 常用画幅，已验证通过原生 `
 因此：
 
 - 不要在一阶请求中发送 `n`；MVP 固定单输出。
-- 2.5 可以显示 1K/2K/4K 预设，但帮助文案必须标注实验性/高费用；Gemini 未验证前不显示 2K/4K。
+- 2.5 可以显示 1K/2K/4K 预设，但帮助文案必须标注实验性/高费用；Gemini 只显示已验证的 1K/2K，不显示 4K。
 - “多图编辑”指多张输入参考图，不是一次生成多张结果。
 - 上游可能返回一张或多张；本项目固定只读取并保存第一张，实际 MIME、格式、尺寸和 URL 有效期以 Phase 0.5 真实响应为准。
 - 不要在代码或下载文件名中硬编码 `.png`；扩展名按实际 MIME 生成。
